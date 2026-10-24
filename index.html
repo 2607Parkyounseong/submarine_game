@@ -1,0 +1,3814 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>심해 탐험: 레트로 서브마린</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #01040f;
+            color: #d1d5db;
+            font-family: 'Consolas', 'Courier New', monospace;
+        }
+
+        h1 {
+            display: none; /* 전체 화면 모드에서는 캔버스를 100% 활용 */
+        }
+
+        #game-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            border: none;
+            box-shadow: none;
+            background-color: #01040f;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            image-rendering: pixelated;
+        }
+
+        /* 하단 중앙 플로팅 조작 안내 바 */
+        .controls-info {
+            position: absolute;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            align-items: center;
+            font-size: 13px;
+            color: #94a3b8;
+            background: rgba(15, 23, 42, 0.88);
+            backdrop-filter: blur(4px);
+            padding: 7px 20px;
+            border-radius: 8px;
+            border: 1px solid #1e293b;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+            z-index: 25;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        .key-badge {
+            background: #334155;
+            color: #f8fafc;
+            padding: 2px 7px;
+            border-radius: 4px;
+            font-weight: bold;
+            border-bottom: 2px solid #1e293b;
+            margin: 0 2px;
+        }
+
+        /* 화면 좌측 하단 레트로 터미널 로그 오버레이 */
+        #terminal-log {
+            position: absolute;
+            bottom: 50px;
+            left: 16px;
+            width: 380px;
+            height: 90px;
+            background: rgba(2, 10, 23, 0.82);
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(3, 105, 161, 0.6);
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 12px;
+            color: #38bdf8;
+            overflow-y: auto;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.8), 0 4px 15px rgba(0,0,0,0.5);
+            z-index: 25;
+        }
+
+        #terminal-log p {
+            margin: 2px 0;
+            line-height: 1.4;
+        }
+
+        .log-time {
+            color: #64748b;
+            margin-right: 6px;
+        }
+
+        .log-collect { color: #4ade80; }
+        .log-warn { color: #f87171; font-weight: bold; }
+        .log-skill { color: #c084fc; font-weight: bold; }
+        .log-upgrade { color: #fbbf24; font-weight: bold; }
+
+        /* 업그레이드 모달 UI */
+        #upgrade-panel {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 560px;
+            max-height: 82vh;
+            background: rgba(5, 15, 35, 0.96);
+            border: 2px solid #38bdf8;
+            border-radius: 8px;
+            box-shadow: 0 0 35px rgba(56, 189, 248, 0.6);
+            padding: 16px 20px;
+            color: #f1f5f9;
+            z-index: 50;
+            overflow-y: auto;
+        }
+
+        #upgrade-panel h2 {
+            font-size: 17px;
+            color: #fbbf24;
+            text-align: center;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1px dashed #38bdf8;
+            padding-bottom: 6px;
+        }
+
+        .upgrade-station-badge {
+            background: rgba(56, 189, 248, 0.15);
+            border: 1px solid #0284c7;
+            color: #7dd3fc;
+            padding: 4px 10px;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 12px;
+            margin-bottom: 10px;
+        }
+
+        .upgrade-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(15, 23, 42, 0.75);
+            padding: 7px 12px;
+            border-radius: 6px;
+            margin-bottom: 7px;
+            border: 1px solid #1e293b;
+        }
+
+        .upgrade-info h4 {
+            font-size: 13px;
+            color: #38bdf8;
+            margin-bottom: 2px;
+        }
+
+        .upgrade-info p {
+            font-size: 11px;
+            color: #94a3b8;
+        }
+
+        .upgrade-btn {
+            background: #0284c7;
+            border: none;
+            color: #fff;
+            padding: 5px 12px;
+            font-family: inherit;
+            font-weight: bold;
+            font-size: 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            min-width: 90px;
+        }
+
+        .upgrade-btn:hover:not(:disabled) {
+            background: #38bdf8;
+            box-shadow: 0 0 10px #38bdf8;
+            transform: scale(1.05);
+        }
+
+        .upgrade-btn:disabled {
+            background: #334155;
+            color: #64748b;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* 히든 강화 전용 스타일 */
+        .hidden-section {
+            margin-top: 14px;
+            padding-top: 12px;
+            border-top: 2px dashed #a855f7;
+        }
+
+        .hidden-section-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #d946ef;
+            text-align: center;
+            margin-bottom: 9px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            text-shadow: 0 0 10px rgba(217, 70, 239, 0.6);
+        }
+
+        .hidden-locked-box {
+            background: rgba(30, 27, 75, 0.65);
+            border: 1px dashed #7e22ce;
+            border-radius: 6px;
+            padding: 12px;
+            text-align: center;
+            color: #94a3b8;
+            font-size: 11.5px;
+            line-height: 1.5;
+        }
+
+        .hidden-unlocked-container {
+            display: none;
+        }
+
+        .upgrade-item.hidden-item {
+            background: rgba(59, 7, 100, 0.55);
+            border: 1px solid #a855f7;
+            box-shadow: inset 0 0 10px rgba(168, 85, 247, 0.2), 0 0 8px rgba(168, 85, 247, 0.3);
+            margin-bottom: 8px;
+        }
+
+        .upgrade-item.hidden-item .upgrade-info h4 {
+            color: #f0abfc;
+            text-shadow: 0 0 8px rgba(240, 171, 252, 0.5);
+        }
+
+        .upgrade-btn.hidden-btn {
+            background: linear-gradient(135deg, #9333ea, #c026d3);
+            color: #ffffff;
+            border: 1px solid #f0abfc;
+            box-shadow: 0 0 12px rgba(192, 38, 211, 0.5);
+            min-width: 105px;
+        }
+
+        .upgrade-btn.hidden-btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #a855f7, #d946ef);
+            box-shadow: 0 0 18px rgba(217, 70, 239, 0.85);
+            transform: scale(1.05);
+        }
+
+        .upgrade-btn.hidden-btn:disabled {
+            background: #334155;
+            border-color: #475569;
+            color: #64748b;
+            box-shadow: none;
+            transform: none;
+        }
+
+        .close-btn {
+            display: block;
+            width: 100%;
+            margin-top: 10px;
+            background: #334155;
+            border: none;
+            color: #e2e8f0;
+            padding: 7px;
+            font-family: inherit;
+            font-size: 12px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .close-btn:hover { background: #475569; }
+
+        /* 메인 메뉴 모드 선택 화면 */
+        #main-menu {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: radial-gradient(circle at center, #071933 0%, #010614 70%, #000208 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            padding: 20px;
+        }
+
+        #main-menu h1 {
+            display: block;
+            font-size: 38px;
+            color: #38bdf8;
+            text-shadow: 0 0 25px rgba(56, 189, 248, 0.8), 0 0 50px rgba(56, 189, 248, 0.4);
+            margin-bottom: 8px;
+            letter-spacing: 2px;
+            text-align: center;
+            font-weight: 900;
+        }
+
+        .menu-subtitle {
+            font-size: 15px;
+            color: #94a3b8;
+            margin-bottom: 40px;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+        }
+
+        .mode-cards {
+            display: flex;
+            gap: 24px;
+            max-width: 1050px;
+            width: 100%;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .mode-card {
+            flex: 1;
+            min-width: 290px;
+            max-width: 330px;
+            background: rgba(15, 23, 42, 0.85);
+            border: 2px solid #1e293b;
+            border-radius: 12px;
+            padding: 24px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+        }
+
+        .mode-card:hover {
+            transform: translateY(-8px);
+            border-color: #38bdf8;
+            box-shadow: 0 12px 35px rgba(56, 189, 248, 0.4);
+            background: rgba(15, 23, 42, 0.98);
+        }
+
+        .mode-card.mode-endless:hover { border-color: #38bdf8; box-shadow: 0 0 30px rgba(56, 189, 248, 0.4); }
+        .mode-card.mode-time:hover { border-color: #f59e0b; box-shadow: 0 0 30px rgba(245, 158, 11, 0.4); }
+        .mode-card.mode-arcade:hover { border-color: #ec4899; box-shadow: 0 0 30px rgba(236, 72, 153, 0.4); }
+
+        .mode-icon {
+            font-size: 42px;
+            margin-bottom: 12px;
+        }
+
+        .mode-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #f8fafc;
+            margin-bottom: 10px;
+        }
+
+        .mode-desc {
+            font-size: 13px;
+            color: #94a3b8;
+            line-height: 1.6;
+            margin-bottom: 16px;
+            min-height: 58px;
+        }
+
+        .mode-badge {
+            display: inline-block;
+            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-weight: bold;
+            background: rgba(56, 189, 248, 0.15);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.4);
+        }
+
+        .mode-time .mode-badge {
+            background: rgba(245, 158, 11, 0.15);
+            color: #fbbf24;
+            border-color: rgba(245, 158, 11, 0.4);
+        }
+
+        .mode-arcade .mode-badge {
+            background: rgba(236, 72, 153, 0.15);
+            color: #f472b6;
+            border-color: rgba(236, 72, 153, 0.4);
+        }
+
+        /* 결과 화면 팝업 모달 */
+        #result-screen {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(1, 6, 18, 0.92);
+            backdrop-filter: blur(8px);
+            z-index: 120;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .result-box {
+            background: rgba(15, 23, 42, 0.95);
+            border: 2px solid #38bdf8;
+            border-radius: 12px;
+            padding: 30px 45px;
+            max-width: 520px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 0 40px rgba(56, 189, 248, 0.5);
+        }
+
+        .result-box h2 {
+            font-size: 28px;
+            margin-bottom: 12px;
+            font-weight: bold;
+        }
+
+        .result-box p {
+            font-size: 14px;
+            color: #cbd5e1;
+            margin: 6px 0;
+        }
+
+        .result-stats {
+            background: rgba(2, 10, 24, 0.8);
+            border-radius: 8px;
+            padding: 15px;
+            margin: 18px 0;
+            border: 1px solid #1e293b;
+        }
+
+        .result-btn-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .result-btn {
+            flex: 1;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            font-family: inherit;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-retry {
+            background: #0284c7;
+            color: white;
+        }
+        .btn-retry:hover { background: #38bdf8; transform: scale(1.03); }
+
+        .btn-menu {
+            background: #334155;
+            color: #f1f5f9;
+        }
+        .btn-menu:hover { background: #475569; transform: scale(1.03); }
+
+        /* 도킹 알림 오버레이 안내 */
+        #dock-alert {
+            display: none;
+            position: absolute;
+            bottom: 58px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(2, 44, 34, 0.94);
+            border: 1px solid #10b981;
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.5);
+            color: #6ee7b7;
+            padding: 8px 18px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: bold;
+            animation: pulse-glow 1.5s infinite;
+            z-index: 30;
+            pointer-events: none;
+        }
+
+        #non-dock-warning {
+            display: none;
+            position: absolute;
+            top: 75px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(88, 28, 28, 0.95);
+            border: 1px solid #ef4444;
+            color: #fca5a5;
+            padding: 8px 20px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: bold;
+            z-index: 40;
+            pointer-events: none;
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 0.85; transform: translateX(-50%) scale(1); }
+            50% { opacity: 1; transform: translateX(-50%) scale(1.04); }
+        }
+    </style>
+</head>
+<body>
+
+    <h1><span style="font-size: 24px;">🕹️</span> DEEP SEA SUBMARINE: ENDLESS EXPEDITION</h1>
+
+    <div id="game-container">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+        <!-- 도킹 알림 툴팁 -->
+        <div id="dock-alert">⚓ 기지 도킹 완료! [U] 키를 눌러 강화실을 여세요.</div>
+        <div id="non-dock-warning">⚠️ 기지(⚓)에 도킹해야 강화를 진행할 수 있습니다!</div>
+
+        <!-- 강화 상점 팝업 -->
+        <div id="upgrade-panel">
+            <h2>⚓ 심해 기지 엔지니어링실</h2>
+            <div class="upgrade-station-badge" id="station-badge">📡 [도킹 접속 중] 심해 거점 보급 기지</div>
+            <div id="upgrade-points-display" style="text-align:center; font-size:13px; color:#4ade80; margin-bottom:10px;">보유 포인트: 0 PTS</div>
+            
+            <!-- 1. 잠수정 주변 360° 시야 확장 -->
+            <div class="upgrade-item">
+                <div class="upgrade-info">
+                    <h4 id="vision-title">🔮 주변 360° 시야 확장 (Lv.1/10)</h4>
+                    <p id="vision-desc">잠수정 주변 전방위 탐사 조명 및 센서 감지 반경을 확장합니다.</p>
+                </div>
+                <button class="upgrade-btn" id="btn-upgrade-vision">150 P</button>
+            </div>
+
+            <!-- 2. 전방 서치라이트 투광등 -->
+            <div class="upgrade-item">
+                <div class="upgrade-info">
+                    <h4 id="light-title">💡 전방 심해 서치라이트 (Lv.1/10)</h4>
+                    <p id="light-desc">전방으로 투사되는 헤드라이트 빔 사거리와 투광각을 강화합니다.</p>
+                </div>
+                <button class="upgrade-btn" id="btn-upgrade-light">160 P</button>
+            </div>
+
+            <!-- 3. 신규: 레이더(소나) 쿨타임 감소 -->
+            <div class="upgrade-item">
+                <div class="upgrade-info">
+                    <h4 id="sonar-title">📡 레이더 쿨타임 단축 (Lv.1/10)</h4>
+                    <p id="sonar-desc">[Q] 레이더 음파 스캔의 재충전 쿨다운 대기 시간을 줄입니다.</p>
+                </div>
+                <button class="upgrade-btn" id="btn-upgrade-sonar">140 P</button>
+            </div>
+
+            <!-- 4. 자석 흡인 범위 -->
+            <div class="upgrade-item">
+                <div class="upgrade-info">
+                    <h4 id="magnet-title">🧲 수집 자력 인력 범위 (Lv.1/10)</h4>
+                    <p id="magnet-desc">보물을 끌어당기는 전자기 탐지 및 인양 자력을 강화합니다.</p>
+                </div>
+                <button class="upgrade-btn" id="btn-upgrade-magnet">150 P</button>
+            </div>
+
+            <!-- 5. 추진 엔진 가속 -->
+            <div class="upgrade-item">
+                <div class="upgrade-info">
+                    <h4 id="speed-title">⚡ 고출력 터보 엔진 (Lv.1/10)</h4>
+                    <p id="speed-desc">잠수정의 추진 프로펠러 파워와 최대 기동 속도를 높입니다.</p>
+                </div>
+                <button class="upgrade-btn" id="btn-upgrade-speed">160 P</button>
+            </div>
+
+            <!-- 6. 선체 장갑 내구도 보강 (10칸 상한) -->
+            <div class="upgrade-item">
+                <div class="upgrade-info">
+                    <h4 id="hull-title">🛡️ 티타늄 선체 수리 & 보강 (HP: 3/10)</h4>
+                    <p id="hull-desc">훼손된 내구도를 1칸 수리하거나 최대 장갑 내구도를 1칸 증축합니다.</p>
+                </div>
+                <button class="upgrade-btn" id="btn-upgrade-hull">180 P</button>
+            </div>
+
+            <!-- 7. 신규: 탐사 스코어 획득 배수 증폭 -->
+            <div class="upgrade-item">
+                <div class="upgrade-info">
+                    <h4 id="scoremult-title">⭐ 스코어 획득 배수 (Lv.1/10) [1.0x]</h4>
+                    <p id="scoremult-desc">보물 인양 시 획득하는 스코어 포인트를 증폭합니다. (Lv당 +0.5x)</p>
+                </div>
+                <button class="upgrade-btn" id="btn-upgrade-scoremult">350 P</button>
+            </div>
+
+            <!-- 8. 신규: 충격파 공격력 강화 -->
+            <div class="upgrade-item">
+                <div class="upgrade-info">
+                    <h4 id="skilldmg-title">💥 충격 펄스 캐논 공격력 (Lv.1/10) [DMG: 1]</h4>
+                    <p id="skilldmg-desc">[E / Space] 충격 펄스 캐논이 적에게 입히는 피해량을 증강합니다.</p>
+                </div>
+                <button class="upgrade-btn" id="btn-upgrade-skilldmg">200 P</button>
+            </div>
+
+            <!-- 9. 신규: 충격파 공격 범위 확장 -->
+            <div class="upgrade-item">
+                <div class="upgrade-info">
+                    <h4 id="skillradius-title">🌊 충격 펄스 폭발 반경 (Lv.1/10) [130px]</h4>
+                    <p id="skillradius-desc">[E / Space] 충격 펄스 캐논의 타격 폭발 유효 반경을 확대합니다.</p>
+                </div>
+                <button class="upgrade-btn" id="btn-upgrade-skillradius">180 P</button>
+            </div>
+
+            <!-- 10. 신규: 보물 스폰 밀도 강화 (스코어 배수의 2배 비용, 최대 30레벨 & 2000개) -->
+            <div class="upgrade-item">
+                <div class="upgrade-info">
+                    <h4 id="spawndensity-title">💎 심해 보석 스폰 밀도 증강 (Lv.1/30)</h4>
+                    <p id="spawndensity-desc">심해 전역에 출현하는 보물 총 수량(최대 2,000개)과 재생성 속도를 대폭 증강합니다.</p>
+                </div>
+                <button class="upgrade-btn" id="btn-upgrade-spawndensity">700 P</button>
+            </div>
+
+            <!-- 신규: 고대 심해 히든 프로토콜 (모든 일반 강화 완료 시 해금) -->
+            <div class="hidden-section">
+                <div class="hidden-section-title">
+                    ✨ 고대 심해 히든 프로토콜 ✨
+                </div>
+                
+                <!-- 잠금 상태 안내 박스 -->
+                <div id="hidden-locked-box" class="hidden-locked-box">
+                    <div style="font-size: 13px; font-weight: bold; color: #f59e0b; margin-bottom: 4px;">🔒 히든 시스템 봉인 상태</div>
+                    <div>모든 일반 강화(10종)를 최대 레벨(Lv.MAX)까지 달성하면 봉인이 해제됩니다.</div>
+                    <div id="hidden-progress-text" style="margin-top: 6px; color: #c084fc; font-weight: bold;">달성도: 0 / 10 MAX</div>
+                </div>
+
+                <!-- 잠금 해제 시 활성화될 히든 강화 3종 -->
+                <div id="hidden-unlocked-container" class="hidden-unlocked-container">
+                    <!-- 히든 1: 화면 내 모든 보석 흡인 [R 액티브 스킬] -->
+                    <div class="upgrade-item hidden-item">
+                        <div class="upgrade-info">
+                            <h4 id="hidden-magnet-title">🌌 초공간 진공관 [R 액티브 스킬]</h4>
+                            <p id="hidden-magnet-desc">[R] 키 발동 시 블랙홀 볼텍스를 생성하여 화면 내의 모든 보석을 잠수정으로 강력하게 흡입합니다.</p>
+                        </div>
+                        <button class="upgrade-btn hidden-btn" id="btn-hidden-magnet">100,000 P</button>
+                    </div>
+
+                    <!-- 히든 2: 화면 전체 시야 100% 개방 -->
+                    <div class="upgrade-item hidden-item">
+                        <div class="upgrade-info">
+                            <h4 id="hidden-vision-title">👁️ 심연의 천리안 (전체 시야)</h4>
+                            <p id="hidden-vision-desc">심해의 모든 어둠을 완전히 걷어내고 화면 전체의 시야를 100% 개방합니다.</p>
+                        </div>
+                        <button class="upgrade-btn hidden-btn" id="btn-hidden-vision">100,000 P</button>
+                    </div>
+
+                    <!-- 히든 3: 화면 내 모든 적 절멸 스킬 -->
+                    <div class="upgrade-item hidden-item">
+                        <div class="upgrade-info">
+                            <h4 id="hidden-nuke-title">💥 네오 오메가 궤멸포 (화면 전역 적 섬멸)</h4>
+                            <p id="hidden-nuke-desc">[E / Space] 충격 펄스 발동 시 화면 내에 존재하는 모든 적을 일격에 전멸시킵니다.</p>
+                        </div>
+                        <button class="upgrade-btn hidden-btn" id="btn-hidden-nuke">100,000 P</button>
+                    </div>
+                </div>
+            </div>
+
+            <button class="close-btn" id="btn-close-upgrade">닫기 (ESC / U 키)</button>
+        </div>
+    </div>
+
+    <!-- 메인 메뉴: 게임 모드 선택 화면 -->
+    <div id="main-menu">
+        <h1>🕹️ DEEP SEA SUBMARINE: EXPEDITION</h1>
+        <div class="menu-subtitle">심해 잠수정 레트로 탐사 아케이드</div>
+        <div class="mode-cards">
+            <div class="mode-card mode-endless" id="btn-mode-endless">
+                <div class="mode-icon">🌊</div>
+                <div class="mode-title">무제한 모드</div>
+                <div class="mode-desc">초대형 심해를 끝없이 탐사하며 장비를 강화하고, 위험한 적들을 격퇴하며 최고 점수에 도전하세요!</div>
+                <div class="mode-badge">무한 탐사 & 엔지니어링 강화</div>
+            </div>
+            <div class="mode-card mode-time" id="btn-mode-time">
+                <div class="mode-icon">⏱️</div>
+                <div class="mode-title">시간제한 모드</div>
+                <div class="mode-desc">제한 시간 5분(300초)! 강화 없이 기본 기동력과 컨트롤만으로 최대한 많은 점수를 획득하세요!</div>
+                <div class="mode-badge">5분 타임어택 (강화 불가)</div>
+            </div>
+            <div class="mode-card mode-arcade" id="btn-mode-arcade">
+                <div class="mode-icon">🏆</div>
+                <div class="mode-title">아케이드 모드</div>
+                <div class="mode-desc">심해 탐사 목표 점수 500,000 PTS를 달성하여 무사히 심해 미션을 클리어하세요!</div>
+                <div class="mode-badge">목표: 50만점 달성 클리어</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 결과 화면 모달 -->
+    <div id="result-screen">
+        <div class="result-box">
+            <h2 id="result-title">MISSION COMPLETED</h2>
+            <p id="result-desc">탐사가 종료되었습니다.</p>
+            <div class="result-stats">
+                <p id="result-score" style="font-size: 18px; color: #4ade80; font-weight: bold;">최종 점수: 0 PTS</p>
+                <p id="result-salvage" style="color: #fbbf24;">인양한 보물: 0개</p>
+                <p id="result-kills" style="color: #f87171;">격퇴한 적: 0체</p>
+                <p id="result-time" style="color: #94a3b8;">생존 탐사 시간: 00:00</p>
+            </div>
+            <div class="result-btn-group">
+                <button class="result-btn btn-retry" id="btn-result-retry">다시 출항하기</button>
+                <button class="result-btn btn-menu" id="btn-result-menu">메인 메뉴로</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 하단 조작 안내 -->
+    <div class="controls-info">
+        <div>
+            이동: <span class="key-badge">W</span><span class="key-badge">A</span><span class="key-badge">S</span><span class="key-badge">D</span>
+            &nbsp;|&nbsp;
+            공격: <span class="key-badge">E</span> / <span class="key-badge">SPACE</span>
+            &nbsp;|&nbsp;
+            소나: <span class="key-badge">Q</span>
+            &nbsp;|&nbsp;
+            초공간진공: <span class="key-badge">R (히든)</span>
+            &nbsp;|&nbsp;
+            강화실: <span class="key-badge">U (도킹 시)</span>
+        </div>
+        <div id="mode-info-tag">
+            모드를 선택하여 심해로 출항하세요!
+        </div>
+    </div>
+
+    <!-- 실시간 터미널 콘솔 로그 -->
+    <div id="terminal-log">
+        <p><span class="log-time">[SYSTEM]</span> 무제한 심해 탐사 시스템 가동. [Q] 레이더 음파 스캔 준비 완료.</p>
+    </div>
+
+    <script>
+        /* -------------------------------------------------------------
+           레트로 사운드 신디사이저 (Web Audio API)
+        ------------------------------------------------------------- */
+        class RetroAudio {
+            constructor() {
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playCollect() {
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(523.25, now);
+                osc.frequency.exponentialRampToValueAtTime(1046.50, now + 0.12);
+                gain.gain.setValueAtTime(0.18, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.15);
+            }
+
+            playHit() {
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(160, now);
+                osc.frequency.exponentialRampToValueAtTime(40, now + 0.25);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.25);
+            }
+
+            playSonar() {
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(987.77, now);
+                osc.frequency.exponentialRampToValueAtTime(1318.51, now + 0.08);
+                gain.gain.setValueAtTime(0.22, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.45);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.45);
+            }
+
+            playUpgrade() {
+                this.init();
+                const now = this.ctx.currentTime;
+                const notes = [440, 554.37, 659.25, 880];
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.07);
+                    gain.gain.setValueAtTime(0.15, now + idx * 0.07);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.07 + 0.1);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + idx * 0.07);
+                    osc.stop(now + idx * 0.07 + 0.1);
+                });
+            }
+
+            playDock() {
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(392.0, now);
+                osc.frequency.exponentialRampToValueAtTime(587.33, now + 0.2);
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.35);
+            }
+
+            playHiddenUpgrade() {
+                this.init();
+                const now = this.ctx.currentTime;
+                // 웅장하고 신비로운 5중 아르페지오 신디 사운드
+                const chord = [523.25, 659.25, 783.99, 1046.50, 1318.51, 1567.98];
+                chord.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+                    gain.gain.setValueAtTime(0.2, now + idx * 0.08);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.3);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + idx * 0.08);
+                    osc.stop(now + idx * 0.08 + 0.3);
+                });
+            }
+
+            playHiddenUnlock() {
+                this.init();
+                const now = this.ctx.currentTime;
+                const fanfares = [440, 554.37, 659.25, 880, 1108.73];
+                fanfares.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.09);
+                    gain.gain.setValueAtTime(0.18, now + idx * 0.09);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.09 + 0.25);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + idx * 0.09);
+                    osc.stop(now + idx * 0.09 + 0.25);
+                });
+            }
+
+            playGameOver() {
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(220, now);
+                osc.frequency.exponentialRampToValueAtTime(45, now + 0.8);
+                gain.gain.setValueAtTime(0.35, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.85);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.85);
+            }
+
+            playAttack() {
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(440, now);
+                osc.frequency.exponentialRampToValueAtTime(110, now + 0.18);
+                gain.gain.setValueAtTime(0.25, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.18);
+            }
+
+            playVacuum() {
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(140, now);
+                osc.frequency.linearRampToValueAtTime(580, now + 0.35);
+                osc.frequency.exponentialRampToValueAtTime(180, now + 0.85);
+                gain.gain.setValueAtTime(0.01, now);
+                gain.gain.linearRampToValueAtTime(0.35, now + 0.2);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.85);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.85);
+            }
+
+            playExplosion() {
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(180, now);
+                osc.frequency.exponentialRampToValueAtTime(30, now + 0.28);
+                gain.gain.setValueAtTime(0.28, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            }
+
+            playNuke() {
+                this.init();
+                const now = this.ctx.currentTime;
+                // 초강력 광역 전멸 폭발음
+                const freqs = [600, 450, 300, 150, 50];
+                freqs.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+                    osc.frequency.exponentialRampToValueAtTime(25, now + idx * 0.08 + 0.4);
+                    gain.gain.setValueAtTime(0.3, now + idx * 0.08);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.08 + 0.45);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + idx * 0.08);
+                    osc.stop(now + idx * 0.08 + 0.45);
+                });
+            }
+
+            playVictory() {
+                this.init();
+                const now = this.ctx.currentTime;
+                const notes = [523.25, 659.25, 783.99, 1046.50, 1318.51, 1567.98];
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.1);
+                    gain.gain.setValueAtTime(0.22, now + idx * 0.1);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.1 + 0.35);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + idx * 0.1);
+                    osc.stop(now + idx * 0.1 + 0.35);
+                });
+            }
+        }
+
+        const sound = new RetroAudio();
+
+        function logToTerminal(message, type = 'normal') {
+            const terminalEl = document.getElementById('terminal-log');
+            const now = new Date();
+            const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+            
+            const p = document.createElement('p');
+            let cls = '';
+            if (type === 'collect') cls = 'log-collect';
+            if (type === 'warn') cls = 'log-warn';
+            if (type === 'skill') cls = 'log-skill';
+            if (type === 'upgrade') cls = 'log-upgrade';
+
+            p.innerHTML = `<span class="log-time">[${timeStr}]</span> <span class="${cls}">${message}</span>`;
+            terminalEl.appendChild(p);
+            terminalEl.scrollTop = terminalEl.scrollHeight;
+        }
+
+        /* -------------------------------------------------------------
+           픽셀 아트 도트 매트릭스 렌더러
+        ------------------------------------------------------------- */
+        function createPixelCanvas(artMap, palette, pixelSize = 3) {
+            const height = artMap.length;
+            const width = Math.max(...artMap.map(r => r.length));
+            const c = document.createElement('canvas');
+            c.width = width * pixelSize;
+            c.height = height * pixelSize;
+            const cx = c.getContext('2d');
+
+            for (let y = 0; y < height; y++) {
+                const row = artMap[y];
+                for (let x = 0; x < row.length; x++) {
+                    const char = row[x];
+                    if (palette[char]) {
+                        cx.fillStyle = palette[char];
+                        cx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+                    }
+                }
+            }
+            return c;
+        }
+
+        const SUB_ART = [
+            "........DDDD........",
+            "........D..D........",
+            "....YYYYYYYYYYYY....",
+            "...YWWYYYYYYYYYYY...",
+            "..YWCCWYYYYYYYYYYO..",
+            "PPYWCCWYYRRYYYYYYO..",
+            ".PYWWWWYYYYYYYYYYO..",
+            "PPYYYYYYYYYYYYYYYO..",
+            "..YYYYYYYYYYYYYYO...",
+            "...OOOOOOOOOOOOO....",
+            ".....DD.....DD......",
+            "....DDDD...DDDD....."
+        ];
+        const SUB_PALETTE = {
+            'Y': '#facc15', 'O': '#d97706', 'W': '#f8fafc',
+            'C': '#38bdf8', 'D': '#475569', 'R': '#ef4444', 'P': '#94a3b8'
+        };
+
+        const WRECK_ART = [
+            "........D..D........",
+            ".......DD..D........",
+            "....YY..YYYY..YY....",
+            "...Y.WYYYY..YYYYY...",
+            "..YW.CWYYYYYYYY..O..",
+            "P.YWCCWYY..YYYYYYO..",
+            "..YWW.WYYYY.YYY..O..",
+            ".PYYY.YYYYYYYYYYYO..",
+            "..YY.YYYYYYYYYYO....",
+            "...OO.OOOOOOOOOO....",
+            ".....D......DD......",
+            "....DD......DDD....."
+        ];
+        const WRECK_PALETTE = {
+            'Y': '#78716c', 'O': '#44403c', 'W': '#a8a29e',
+            'C': '#0f766e', 'D': '#292524', 'P': '#57534e'
+        };
+
+        const CRYSTAL_ART = [
+            "...CCC...",
+            "..CWWWC..",
+            ".CWCCCWC.",
+            "CCCCCCCC.",
+            ".CCCCCCC.",
+            "..CCCCC..",
+            "...CCC...",
+            "....C...."
+        ];
+        const CHEST_ART = [
+            "..YYYYYY..",
+            ".YWWWWWWY.",
+            ".YODDDOOY.",
+            ".YDDDDDDY.",
+            ".YODDDOOY.",
+            ".YDDDDDDY.",
+            "..YYYYYY.."
+        ];
+        const PEARL_ART = [
+            "...PPPPP...",
+            "..PWWWWWP..",
+            ".PWWPPPWWP.",
+            ".PWPPPPPWP.",
+            ".PWWPPPWWP.",
+            "..PWWWWWP..",
+            "...PPPPP..."
+        ];
+        const CORE_ART = [
+            "...GGGG...",
+            "..GWWWWG..",
+            ".GWG..GWG.",
+            ".GWG..GWG.",
+            "..GWWWWG..",
+            "...GGGG..."
+        ];
+
+        const BASE_ART = [
+            "......SSSSSSSS......",
+            "....SSCCCCCCCCSS....",
+            "...SCCWWWWWWWWCCS...",
+            "..SCWWCCCCCCCCWWCS..",
+            "..SCWCCCCGGCCCCWCS..",
+            ".SCWCCCCGGGGCCCCWCS.",
+            ".SCWCCCCGGGGCCCCWCS.",
+            "SSSSSSSSSSSSSSSSSSSS",
+            "DDD..DDD....DDD..DDD",
+            "DDD..DDD....DDD..DDD",
+            "RRRRRRRRRRRRRRRRRRRR"
+        ];
+        const BASE_PALETTE = {
+            'S': '#0284c7', 'C': '#0369a1', 'W': '#e0f2fe',
+            'G': '#10b981', 'D': '#334155', 'R': '#0f172a'
+        };
+
+        // 신규: 심해 적 픽셀 아트 (추적형 헌터 드론 & 고정형 기뢰)
+        const ENEMY_CHASER_ART = [
+            "...RRRR...",
+            "..RRWWRR..",
+            ".RRWCCWRR.",
+            "RRWCCCCWRR",
+            "RRRCCCCRRR",
+            ".RRRRRRRR.",
+            "..RR..RR..",
+            ".RR....RR."
+        ];
+        const ENEMY_CHASER_PALETTE = { 'R': '#ef4444', 'W': '#fee2e2', 'C': '#f43f5e' };
+
+        const ENEMY_MINE_ART = [
+            "...KKKK...",
+            "..KRRRRK..",
+            ".KRRWWRRK.",
+            "KRRWYYWRRK",
+            "KRRWYYWRRK",
+            ".KRRWWRRK.",
+            "..KRRRRK..",
+            "...KKKK..."
+        ];
+        const ENEMY_MINE_PALETTE = { 'K': '#0f172a', 'R': '#dc2626', 'W': '#fee2e2', 'Y': '#fbbf24' };
+
+        const pixelSubRight = createPixelCanvas(SUB_ART, SUB_PALETTE, 3);
+        const pixelWreck = createPixelCanvas(WRECK_ART, WRECK_PALETTE, 3);
+        const pixelCrystal = createPixelCanvas(CRYSTAL_ART, { 'C': '#06b6d4', 'W': '#e0f2fe' }, 3);
+        const pixelChest = createPixelCanvas(CHEST_ART, { 'Y': '#fbbf24', 'W': '#fef08a', 'O': '#d97706', 'D': '#78350f' }, 3);
+        const pixelPearl = createPixelCanvas(PEARL_ART, { 'P': '#f472b6', 'W': '#fdf2f8' }, 3);
+        const pixelCore = createPixelCanvas(CORE_ART, { 'G': '#22c55e', 'W': '#dcfce7' }, 3);
+        const pixelBase = createPixelCanvas(BASE_ART, BASE_PALETTE, 4);
+        const pixelEnemyChaser = createPixelCanvas(ENEMY_CHASER_ART, ENEMY_CHASER_PALETTE, 3);
+        const pixelEnemyMine = createPixelCanvas(ENEMY_MINE_ART, ENEMY_MINE_PALETTE, 3);
+
+        /* -------------------------------------------------------------
+           게임 월드 및 반응형 캔버스 시스템 (초대형 무한급 심해 맵 확장)
+        ------------------------------------------------------------- */
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let VIEW_WIDTH = window.innerWidth;
+        let VIEW_HEIGHT = window.innerHeight;
+
+        function resizeCanvas() {
+            VIEW_WIDTH = window.innerWidth;
+            VIEW_HEIGHT = window.innerHeight;
+            canvas.width = VIEW_WIDTH;
+            canvas.height = VIEW_HEIGHT;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // 초대형 심해 맵 (14,000 x 10,000: 기존 대비 15배 이상 무한급 확장!)
+        const WORLD_WIDTH = 14000;
+        const WORLD_HEIGHT = 10000;
+
+        // 카메라 시스템
+        const camera = {
+            x: 0,
+            y: 0,
+            update(targetX, targetY) {
+                const targetCamX = targetX - VIEW_WIDTH / 2;
+                const targetCamY = targetY - VIEW_HEIGHT / 2;
+                this.x += (targetCamX - this.x) * 0.12;
+                this.y += (targetCamY - this.y) * 0.12;
+                this.x = Math.max(0, Math.min(WORLD_WIDTH - VIEW_WIDTH, this.x));
+                this.y = Math.max(0, Math.min(WORLD_HEIGHT - VIEW_HEIGHT, this.y));
+            }
+        };
+
+        // 게임 상태 및 모드 관리
+        let gameMode = 'menu'; // 'menu', 'endless', 'timeattack', 'arcade'
+        let gameOver = false;
+        let isGameFinished = false;
+        let score = 0;
+        let collectedCount = 0;
+        let enemiesKilled = 0;
+        let survivalTimer = 0.0;
+        let timeAttackTimer = 300.0; // 5분 타임어택
+        const ARCADE_TARGET_SCORE = 500000; // 아케이드 모드 50만점 목표
+        let screenShake = 0;
+        let upgradeMenuOpen = false;
+        let isCurrentlyDocked = false;
+        let currentDockedBase = null;
+
+        // 업그레이드 레벨 (일반 강화 10종 상한 10레벨)
+        const upgrades = {
+            vision: { level: 1, max: 10, baseCost: 150, radius: 95 },                     // 주변 360° 시야 확장
+            light: { level: 1, max: 10, baseCost: 160, beamDist: 170, beamAngle: 50 },    // 전방 서치라이트 투광등
+            sonar: { level: 1, max: 10, baseCost: 140, cooldown: 5.5 },                    // 레이더(소나) 쿨타임 감소
+            magnet: { level: 1, max: 10, baseCost: 140, radius: 45, pullSpeed: 2.5 },      // 자력 수집 범위
+            speed: { level: 1, max: 10, baseCost: 160, value: 3.6 },                        // 추진 터보 엔진
+            hull: { currentHp: 3, maxHp: 3, maxLimit: 10, baseCost: 180 },                 // 선체 티타늄 장갑
+            scoreMult: { level: 1, max: 10, baseCost: 350 },                                // 스코어 배수 (1.0x ~ 5.5x)
+            skillDamage: { level: 1, max: 10, baseCost: 200 },                              // 충격 펄스 공격력 (1 ~ 10)
+            skillRadius: { level: 1, max: 10, baseCost: 180 },                              // 충격 펄스 반경 (130px ~ 355px)
+            spawnDensity: { level: 1, max: 30, baseCost: 700 }                              // 보석 스폰 밀도 (최대 30레벨, 최종 2,000개!)
+        };
+
+        // 히든 강화 시스템 (일반 강화 10종 모두 Lv.MAX 달성 시 개방, 각 10만 P)
+        const hiddenUpgrades = {
+            screenMagnet: false, // 히든1: 초공간 진공관 (화면 내 모든 보석 흡입 [R] 액티브 스킬)
+            fullVision: false,   // 히든2: 주변 시야를 화면 전체 100%로 개방
+            screenNuke: false    // 히든3: 화면 내 모든 적 일격 절멸 스킬
+        };
+        const HIDDEN_UPGRADE_COST = 100000;
+        let hasAnnouncedHiddenUnlock = false;
+
+        function getScoreMultiplier() {
+            // 1레벨: 1.0x, 2레벨: 1.5x, 3레벨: 2.0x, ..., 10레벨: 5.5x
+            return 1.0 + (upgrades.scoreMult.level - 1) * 0.5;
+        }
+
+        function getSkillDamage() {
+            return 1 + (upgrades.skillDamage.level - 1) * 1;
+        }
+
+        function getSkillRadius() {
+            return 130 + (upgrades.skillRadius.level - 1) * 25;
+        }
+
+        function areAllRegularUpgradesMaxed() {
+            return upgrades.vision.level >= upgrades.vision.max &&
+                   upgrades.light.level >= upgrades.light.max &&
+                   upgrades.sonar.level >= upgrades.sonar.max &&
+                   upgrades.magnet.level >= upgrades.magnet.max &&
+                   upgrades.speed.level >= upgrades.speed.max &&
+                   upgrades.hull.maxHp >= upgrades.hull.maxLimit &&
+                   upgrades.scoreMult.level >= upgrades.scoreMult.max &&
+                   upgrades.skillDamage.level >= upgrades.skillDamage.max &&
+                   upgrades.skillRadius.level >= upgrades.skillRadius.max &&
+                   upgrades.spawnDensity.level >= upgrades.spawnDensity.max;
+        }
+
+        function getRegularUpgradesProgress() {
+            let maxedCount = 0;
+            if (upgrades.vision.level >= upgrades.vision.max) maxedCount++;
+            if (upgrades.light.level >= upgrades.light.max) maxedCount++;
+            if (upgrades.sonar.level >= upgrades.sonar.max) maxedCount++;
+            if (upgrades.magnet.level >= upgrades.magnet.max) maxedCount++;
+            if (upgrades.speed.level >= upgrades.speed.max) maxedCount++;
+            if (upgrades.hull.maxHp >= upgrades.hull.maxLimit) maxedCount++;
+            if (upgrades.scoreMult.level >= upgrades.scoreMult.max) maxedCount++;
+            if (upgrades.skillDamage.level >= upgrades.skillDamage.max) maxedCount++;
+            if (upgrades.skillRadius.level >= upgrades.skillRadius.max) maxedCount++;
+            if (upgrades.spawnDensity.level >= upgrades.spawnDensity.max) maxedCount++;
+            return { current: maxedCount, total: 10 };
+        }
+
+        function getUpgradeCost(key) {
+            const up = upgrades[key];
+            if (key === 'hull') {
+                return Math.floor(up.baseCost * (1 + (up.maxHp - 3) * 0.5));
+            }
+            if (key === 'scoreMult') {
+                return Math.floor(up.baseCost * (1 + (up.level - 1) * 0.65));
+            }
+            if (key === 'spawnDensity') {
+                return Math.floor(up.baseCost * (1 + (up.level - 1) * 0.65));
+            }
+            return Math.floor(up.baseCost * (1 + (up.level - 1) * 0.45));
+        }
+
+        // 레이더(소나) 스킬
+        const scannerSkill = {
+            timer: 0.0,
+            activeWave: null
+        };
+
+        function getSonarCooldown() {
+            return Math.max(1.2, 5.5 - (upgrades.sonar.level - 1) * 0.45);
+        }
+
+        // 공격 스킬 시스템 [E / SPACE]
+        const attackSkill = {
+            timer: 0.0,
+            cooldown: 1.2,
+            waves: []
+        };
+
+        // 초공간 진공 흡입 액티브 스킬 시스템 [R] (히든 강화 1 해금 시 가동)
+        const vacuumSkill = {
+            timer: 0.0,
+            cooldown: 10.0,
+            duration: 0.0,
+            maxDuration: 2.2
+        };
+
+        // 잠수정 객체
+        const submarine = {
+            x: 650,
+            y: 550,
+            width: pixelSubRight.width,
+            height: pixelSubRight.height,
+            vx: 0,
+            vy: 0,
+            facingRight: true,
+            invulnerableTimer: 0,
+            animTimer: 0,
+            
+            getHitbox() {
+                const padX = 6;
+                const padY = 6;
+                return {
+                    x: this.x + padX,
+                    y: this.y + padY,
+                    w: this.width - padX * 2,
+                    h: this.height - padY * 2
+                };
+            }
+        };
+
+        // 심해 보급 기지 (초대형 맵 전역에 분산 배치된 6개 거점 기지)
+        const baseStations = [
+            {
+                id: 'alpha',
+                name: '알파 해저 전초기지',
+                x: 600,
+                y: 500,
+                w: pixelBase.width,
+                h: pixelBase.height,
+                dockRadius: 150,
+                color: '#38bdf8'
+            },
+            {
+                id: 'beta',
+                name: '베타 해구 관측소',
+                x: 5200,
+                y: 1900,
+                w: pixelBase.width,
+                h: pixelBase.height,
+                dockRadius: 150,
+                color: '#38bdf8'
+            },
+            {
+                id: 'gamma',
+                name: '감마 심연 보급선',
+                x: 10800,
+                y: 1500,
+                w: pixelBase.width,
+                h: pixelBase.height,
+                dockRadius: 150,
+                color: '#fbbf24'
+            },
+            {
+                id: 'delta',
+                name: '델타 지열 발전기지',
+                x: 2400,
+                y: 6800,
+                w: pixelBase.width,
+                h: pixelBase.height,
+                dockRadius: 150,
+                color: '#f97316'
+            },
+            {
+                id: 'omega',
+                name: '오메가 심해 연구소',
+                x: 7200,
+                y: 7800,
+                w: pixelBase.width,
+                h: pixelBase.height,
+                dockRadius: 150,
+                color: '#10b981'
+            },
+            {
+                id: 'zenith',
+                name: '제니스 해령 심층기지',
+                x: 11400,
+                y: 7600,
+                w: pixelBase.width,
+                h: pixelBase.height,
+                dockRadius: 150,
+                color: '#c084fc'
+            }
+        ];
+
+        /* -------------------------------------------------------------
+           장애물 랜덤 배치 시스템 (초대형 맵 확장: 120개 암초)
+        ------------------------------------------------------------- */
+        let obstacles = [];
+
+        function generateRandomObstacles() {
+            obstacles = [];
+            const obstacleCount = 120;
+            const safeDistance = 300;
+
+            for (let i = 0; i < obstacleCount; i++) {
+                let attempts = 0;
+                let valid = false;
+                let obs = null;
+
+                while (!valid && attempts < 80) {
+                    attempts++;
+                    const w = 70 + Math.floor(Math.random() * 140);
+                    const h = 60 + Math.floor(Math.random() * 120);
+                    const x = 150 + Math.random() * (WORLD_WIDTH - w - 300);
+                    const y = 160 + Math.random() * (WORLD_HEIGHT - h - 300);
+
+                    let nearBase = false;
+                    for (const base of baseStations) {
+                        const dist = Math.hypot((x + w / 2) - (base.x + base.w / 2), (y + h / 2) - (base.y + base.h / 2));
+                        if (dist < base.dockRadius + safeDistance) {
+                            nearBase = true;
+                            break;
+                        }
+                    }
+
+                    const distSub = Math.hypot(x - submarine.x, y - submarine.y);
+                    if (distSub < 300) nearBase = true;
+
+                    if (!nearBase) {
+                        valid = true;
+                        const shapeType = Math.floor(Math.random() * 3);
+                        obs = {
+                            x, y, w, h,
+                            shapeType,
+                            color: shapeType === 2 ? '#1e293b' : '#0f172a',
+                            borderColor: shapeType === 2 ? '#0f766e' : '#334155',
+                            sonarPing: 0
+                        };
+                    }
+                }
+
+                if (obs) {
+                    obstacles.push(obs);
+                }
+            }
+        }
+        generateRandomObstacles();
+
+        /* -------------------------------------------------------------
+           심해 적 생물체 / 위험 물체 시스템 (추적형 & 고정형)
+        ------------------------------------------------------------- */
+        let enemies = [];
+
+        function findValidEnemyPosition(minDistToPlayer = 600) {
+            for (let attempts = 0; attempts < 120; attempts++) {
+                const x = 200 + Math.random() * (WORLD_WIDTH - 400);
+                const y = 200 + Math.random() * (WORLD_HEIGHT - 400);
+
+                if (Math.hypot(x - submarine.x, y - submarine.y) < minDistToPlayer) continue;
+
+                let nearBase = false;
+                for (const base of baseStations) {
+                    if (Math.hypot(x - (base.x + base.w / 2), y - (base.y + base.h / 2)) < base.dockRadius + 180) {
+                        nearBase = true;
+                        break;
+                    }
+                }
+                if (nearBase) continue;
+
+                return { x, y };
+            }
+            return { x: 1500, y: 1500 };
+        }
+
+        function spawnEnemies() {
+            enemies = [];
+            const chaserCount = 26; // 추적형 심해 헌터 드론
+            const mineCount = 26;   // 고정형 심해 기뢰
+
+            for (let i = 0; i < chaserCount; i++) {
+                const pos = findValidEnemyPosition(700);
+                enemies.push({
+                    id: 'chaser_' + i,
+                    type: 'chaser',
+                    name: '심해 헌터 드론',
+                    canvas: pixelEnemyChaser,
+                    x: pos.x,
+                    y: pos.y,
+                    w: pixelEnemyChaser.width,
+                    h: pixelEnemyChaser.height,
+                    hp: 2,
+                    maxHp: 2,
+                    speed: 2.1 + Math.random() * 0.8,
+                    alive: true,
+                    respawnTimer: 0,
+                    facingRight: true,
+                    detectRange: 800,
+                    pulseAnim: Math.random() * Math.PI * 2
+                });
+            }
+
+            for (let i = 0; i < mineCount; i++) {
+                const pos = findValidEnemyPosition(500);
+                enemies.push({
+                    id: 'mine_' + i,
+                    type: 'mine',
+                    name: '부유 심해 기뢰',
+                    canvas: pixelEnemyMine,
+                    x: pos.x,
+                    y: pos.y,
+                    baseY: pos.y,
+                    w: pixelEnemyMine.width,
+                    h: pixelEnemyMine.height,
+                    hp: 1,
+                    maxHp: 1,
+                    speed: 0,
+                    alive: true,
+                    respawnTimer: 0,
+                    floatPhase: Math.random() * Math.PI * 2,
+                    pulseTimer: 0
+                });
+            }
+        }
+        spawnEnemies();
+
+        /* -------------------------------------------------------------
+           보물 아이템 리스트 (스폰 밀도 강화 지원)
+        ------------------------------------------------------------- */
+        let collectibles = [];
+        const itemTemplates = [
+            { name: "네온 크리스탈", type: "crystal", canvas: pixelCrystal, color: "#06b6d4", score: 100 },
+            { name: "고대 황금함", type: "chest", canvas: pixelChest, color: "#fbbf24", score: 250 },
+            { name: "심해 흑진주", type: "pearl", canvas: pixelPearl, color: "#f472b6", score: 150 },
+            { name: "심연 에너지 코어", type: "core", canvas: pixelCore, color: "#22c55e", score: 350 }
+        ];
+
+        // 장애물 및 기지와 겹치지 않는 안전한 빈 공간 탐색
+        function findValidItemPosition(itemW = 32, itemH = 32) {
+            const padding = 28;
+            let posX = 200, posY = 200;
+            let valid = false;
+
+            for (let attempts = 0; attempts < 160; attempts++) {
+                const testX = 100 + Math.random() * (WORLD_WIDTH - itemW - 200);
+                const testY = 120 + Math.random() * (WORLD_HEIGHT - itemH - 240);
+
+                // 1) 기지 내부/주변 도킹 영역 검사
+                let nearBase = false;
+                for (const base of baseStations) {
+                    const dist = Math.hypot((testX + itemW / 2) - (base.x + base.w / 2), (testY + itemH / 2) - (base.y + base.h / 2));
+                    if (dist < base.dockRadius + 45) {
+                        nearBase = true;
+                        break;
+                    }
+                }
+                if (nearBase) continue;
+
+                // 2) 모든 장애물(암초)과의 충돌 및 겹침 검사
+                let collidesWithObs = false;
+                for (const obs of obstacles) {
+                    if (
+                        testX < obs.x + obs.w + padding &&
+                        testX + itemW + padding > obs.x &&
+                        testY < obs.y + obs.h + padding &&
+                        testY + itemH + padding > obs.y
+                    ) {
+                        collidesWithObs = true;
+                        break;
+                    }
+                }
+                if (collidesWithObs) continue;
+
+                posX = testX;
+                posY = testY;
+                valid = true;
+                break;
+            }
+
+            return { x: posX, y: posY };
+        }
+
+        function getCollectibleTargetCount() {
+            // 스폰 밀도 강화에 따른 총 보물 수 (Lv.1: 180개 ~ Lv.30: 2,000개로 대폭 확장!)
+            const level = upgrades.spawnDensity ? upgrades.spawnDensity.level : 1;
+            if (level <= 1) return 180;
+            if (level >= 30) return 2000;
+            return Math.round(180 + (level - 1) * ((2000 - 180) / 29));
+        }
+
+        function spawnSingleItem(id) {
+            const tmpl = itemTemplates[Math.floor(Math.random() * itemTemplates.length)];
+            const pos = findValidItemPosition(tmpl.canvas.width, tmpl.canvas.height);
+
+            return {
+                id,
+                name: tmpl.name,
+                type: tmpl.type,
+                canvas: tmpl.canvas,
+                color: tmpl.color,
+                score: tmpl.score,
+                x: pos.x,
+                y: pos.y,
+                baseY: pos.y,
+                w: tmpl.canvas.width,
+                h: tmpl.canvas.height,
+                phase: Math.random() * Math.PI * 2,
+                collected: false,
+                sonarHighlight: 0,
+                respawnTimer: 0
+            };
+        }
+
+        function initCollectibles() {
+            collectibles = [];
+            const totalItems = getCollectibleTargetCount();
+            for (let i = 0; i < totalItems; i++) {
+                collectibles.push(spawnSingleItem(i + 1));
+            }
+        }
+        initCollectibles();
+
+        // 심해 부유 기포 파티클
+        const bubbles = [];
+        for (let i = 0; i < 120; i++) {
+            bubbles.push({
+                x: Math.random() * WORLD_WIDTH,
+                y: Math.random() * WORLD_HEIGHT,
+                speed: 0.7 + Math.random() * 1.6,
+                size: Math.random() > 0.5 ? 3 : 2,
+                wobble: Math.random() * Math.PI * 2
+            });
+        }
+
+        const sparkles = [];
+        function addSparkles(x, y, color) {
+            for (let i = 0; i < 18; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const spd = 1.5 + Math.random() * 4.5;
+                sparkles.push({
+                    x, y,
+                    vx: Math.cos(angle) * spd,
+                    vy: Math.sin(angle) * spd,
+                    life: 1.0,
+                    decay: 0.035 + Math.random() * 0.04,
+                    size: Math.random() > 0.5 ? 3 : 2,
+                    color
+                });
+            }
+        }
+
+        /* -------------------------------------------------------------
+           입력 처리 (W/A/S/D 이동, Q 레이더, E/Space 공격 스킬, U 강화)
+        ------------------------------------------------------------- */
+        const keys = {};
+        window.addEventListener('keydown', (e) => {
+            sound.init();
+            keys[e.key.toLowerCase()] = true;
+            keys[e.code] = true;
+
+            // [Q] 키: 레이더(소나) 스킬
+            if (e.key === 'q' || e.key === 'Q' || e.code === 'KeyQ') {
+                e.preventDefault();
+                triggerScannerSkill();
+            }
+
+            // [E] 키 또는 [Space] 키: 충격 펄스 공격 스킬 발동!
+            if (e.key === 'e' || e.key === 'E' || e.code === 'KeyE' || e.code === 'Space') {
+                e.preventDefault();
+                triggerAttackSkill();
+            }
+
+            // [U] 키: 강화실 메뉴 토글
+            if (e.key === 'u' || e.key === 'U') {
+                handleUpgradeMenuToggle();
+            }
+
+            // ESC 닫기
+            if (e.key === 'Escape' && upgradeMenuOpen) {
+                closeUpgradeMenu();
+            }
+
+            // [R] 키: 게임오버 시 재출항, 탐사 중에는 초공간 진공 흡입 스킬 [R] 발동!
+            if (e.key === 'r' || e.key === 'R' || e.code === 'KeyR') {
+                if (gameOver) {
+                    startGame(gameMode === 'menu' ? 'endless' : gameMode);
+                } else {
+                    e.preventDefault();
+                    triggerVacuumSkill();
+                }
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+            keys[e.code] = false;
+        });
+
+        // 우측 상단 소나 미니맵 클릭 시 레이더 스킬 발동 & 마우스 오버 시 포인터 커서
+        canvas.addEventListener('click', (e) => {
+            if (gameOver || upgradeMenuOpen || gameMode === 'menu' || isGameFinished) return;
+            const rect = canvas.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+
+            const radarSize = 146;
+            const rightPad = 16;
+            const topPad = 64;
+            const frameX = VIEW_WIDTH - radarSize - rightPad;
+            const frameY = topPad;
+            const frameW = radarSize;
+            const frameH = radarSize + 40;
+
+            if (clickX >= frameX && clickX <= frameX + frameW && clickY >= frameY && clickY <= frameY + frameH) {
+                triggerScannerSkill();
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (gameOver || upgradeMenuOpen || gameMode === 'menu' || isGameFinished) {
+                canvas.style.cursor = 'default';
+                return;
+            }
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+
+            const radarSize = 146;
+            const rightPad = 16;
+            const topPad = 64;
+            const frameX = VIEW_WIDTH - radarSize - rightPad;
+            const frameY = topPad;
+            const frameW = radarSize;
+            const frameH = radarSize + 40;
+
+            if (mx >= frameX && mx <= frameX + frameW && my >= frameY && my <= frameY + frameH) {
+                canvas.style.cursor = 'pointer';
+            } else {
+                canvas.style.cursor = 'default';
+            }
+        });
+
+        /* -------------------------------------------------------------
+           도킹 상태 검사 및 강화실 토글 (시간제한 모드는 강화 제한)
+        ------------------------------------------------------------- */
+        const dockAlertEl = document.getElementById('dock-alert');
+        const nonDockWarningEl = document.getElementById('non-dock-warning');
+        let warningTimeout = null;
+
+        function checkDockStatus() {
+            if (gameMode === 'menu') return;
+            const subCx = submarine.x + submarine.width / 2;
+            const subCy = submarine.y + submarine.height / 2;
+            let docked = false;
+            let targetBase = null;
+
+            for (const base of baseStations) {
+                const baseCx = base.x + base.w / 2;
+                const baseCy = base.y + base.h / 2;
+                const dist = Math.hypot(subCx - baseCx, subCy - baseCy);
+                if (dist <= base.dockRadius) {
+                    docked = true;
+                    targetBase = base;
+                    break;
+                }
+            }
+
+            if (docked && !isCurrentlyDocked) {
+                sound.playDock();
+                if (gameMode === 'timeattack') {
+                    logToTerminal(`⚓ [기지 도킹] '${targetBase.name}'에 접속했으나 시간제한 모드에서는 강화가 제한됩니다!`, "warn");
+                } else {
+                    logToTerminal(`⚓ [기지 도킹 성공] '${targetBase.name}'에 도킹했습니다. [U] 키로 엔지니어링실에 접속하세요!`, "upgrade");
+                }
+            }
+
+            isCurrentlyDocked = docked;
+            currentDockedBase = targetBase;
+
+            dockAlertEl.style.display = isCurrentlyDocked ? 'block' : 'none';
+            if (isCurrentlyDocked && currentDockedBase) {
+                if (gameMode === 'timeattack') {
+                    dockAlertEl.textContent = `⚓ [${currentDockedBase.name}] 도킹 중 (시간제한 모드: 강화 불가)`;
+                } else {
+                    dockAlertEl.textContent = `⚓ [${currentDockedBase.name}] 도킹 완료! [U] 키를 눌러 강화실을 여세요.`;
+                }
+            }
+        }
+
+        function handleUpgradeMenuToggle() {
+            if (gameOver || gameMode === 'menu' || isGameFinished) return;
+
+            // 시간제한 모드에서는 강화 불가!
+            if (gameMode === 'timeattack') {
+                logToTerminal("⚠️ [강화 불가] 시간제한 모드에서는 강화실 엔지니어링을 이용할 수 없습니다!", "warn");
+                nonDockWarningEl.textContent = "⚠️ 시간제한 모드에서는 장비 강화를 진행할 수 없습니다!";
+                nonDockWarningEl.style.display = 'block';
+                if (warningTimeout) clearTimeout(warningTimeout);
+                warningTimeout = setTimeout(() => {
+                    nonDockWarningEl.style.display = 'none';
+                }, 2800);
+                return;
+            }
+
+            if (upgradeMenuOpen) {
+                closeUpgradeMenu();
+                return;
+            }
+
+            if (isCurrentlyDocked) {
+                openUpgradeMenu();
+            } else {
+                logToTerminal("⚠️ [도킹 필요] 강화를 진행하려면 맵의 심해 기지(⚓)에 도킹해야 합니다!", "warn");
+                nonDockWarningEl.textContent = "⚠️ 기지(⚓)에 도킹해야 강화를 진행할 수 있습니다!";
+                nonDockWarningEl.style.display = 'block';
+                if (warningTimeout) clearTimeout(warningTimeout);
+                warningTimeout = setTimeout(() => {
+                    nonDockWarningEl.style.display = 'none';
+                }, 2800);
+            }
+        }
+
+        /* -------------------------------------------------------------
+           공격 스킬 시스템 [E / SPACE] (히든: 화면 전역 절멸포 지원)
+        ------------------------------------------------------------- */
+        function triggerAttackSkill() {
+            if (gameOver || upgradeMenuOpen || gameMode === 'menu' || isGameFinished) return;
+            if (attackSkill.timer > 0) return;
+
+            attackSkill.timer = attackSkill.cooldown;
+            const subCx = submarine.x + submarine.width / 2;
+            const subCy = submarine.y + submarine.height / 2;
+            const dmg = getSkillDamage();
+            const rad = getSkillRadius();
+
+            // 1) 히든 능력 3: 네오 오메가 궤멸포 (화면 내 모든 적 전멸!)
+            if (hiddenUpgrades.screenNuke) {
+                sound.playNuke();
+                screenShake = 22;
+                logToTerminal(`💥 [오메가 궤멸포 발동!] 화면 내의 모든 적을 일격에 섬멸합니다!`, "skill");
+
+                // 화면 뷰포트 내 모든 적 처치
+                let hitCount = 0;
+                enemies.forEach(en => {
+                    if (en.alive &&
+                        en.x + en.w >= camera.x && en.x <= camera.x + VIEW_WIDTH &&
+                        en.y + en.h >= camera.y && en.y <= camera.y + VIEW_HEIGHT) {
+                        en.alive = false;
+                        en.respawnTimer = 6.0;
+                        hitCount++;
+                        enemiesKilled++;
+                        const bonus = Math.round(200 * getScoreMultiplier());
+                        score += bonus;
+                        addSparkles(en.x + en.w / 2, en.y + en.h / 2, '#ec4899');
+                    }
+                });
+
+                // 거대한 전격 파동 이펙트
+                attackSkill.waves.push({
+                    x: subCx,
+                    y: subCy,
+                    radius: 10,
+                    maxRadius: Math.max(VIEW_WIDTH, VIEW_HEIGHT),
+                    color: '#ec4899',
+                    lineWidth: 8,
+                    speed: 35
+                });
+
+                if (hitCount > 0) {
+                    logToTerminal(`💥 화면 내 적 [${hitCount}체] 전멸! (+보너스 점수 획득)`, "collect");
+                    checkGameProgress();
+                }
+                return;
+            }
+
+            // 2) 일반 공격 펄스
+            sound.playAttack();
+            attackSkill.waves.push({
+                x: subCx,
+                y: subCy,
+                radius: 10,
+                maxRadius: rad,
+                color: '#38bdf8',
+                lineWidth: 4,
+                speed: 20
+            });
+
+            let hitCount = 0;
+            enemies.forEach(en => {
+                if (!en.alive) return;
+                const ecx = en.x + en.w / 2;
+                const ecy = en.y + en.h / 2;
+                const d = Math.hypot(ecx - subCx, ecy - subCy);
+                if (d <= rad) {
+                    en.hp -= dmg;
+                    hitCount++;
+                    addSparkles(ecx, ecy, '#f43f5e');
+
+                    if (en.hp <= 0) {
+                        en.alive = false;
+                        en.respawnTimer = 4.5 + Math.random() * 3.0;
+                        enemiesKilled++;
+                        sound.playExplosion();
+                        const bonus = Math.round((en.type === 'chaser' ? 200 : 150) * getScoreMultiplier());
+                        score += bonus;
+                        logToTerminal(`💥 [적 격퇴!] ${en.name} 파괴! (+${bonus}P)`, "collect");
+                        checkGameProgress();
+                    }
+                }
+            });
+        }
+
+        /* -------------------------------------------------------------
+           레이더(소나) 스킬 (Q 키로 발동)
+        ------------------------------------------------------------- */
+        function triggerScannerSkill() {
+            if (gameOver || upgradeMenuOpen || gameMode === 'menu' || isGameFinished) return;
+            if (scannerSkill.timer <= 0) {
+                const cooldown = getSonarCooldown();
+                scannerSkill.timer = cooldown;
+                scannerSkill.activeWave = {
+                    x: submarine.x + submarine.width / 2,
+                    y: submarine.y + submarine.height / 2,
+                    radius: 10,
+                    maxRadius: 2200,
+                    speed: 28
+                };
+                sound.playSonar();
+                logToTerminal(`📡 [레이더 음파 방출] 전방위 심해 탐색 음파를 전개합니다! 미니맵에 주변 광물이 탐지됩니다. (쿨다운: ${cooldown.toFixed(1)}s)`, "skill");
+
+                collectibles.forEach(item => {
+                    if (!item.collected) {
+                        item.sonarHighlight = 6.0;
+                    }
+                });
+
+                obstacles.forEach(obs => {
+                    obs.sonarPing = 4.0;
+                });
+            } else {
+                logToTerminal(`⏳ 레이더 충전 대기 중... (${scannerSkill.timer.toFixed(1)}초 남음)`, "normal");
+            }
+        }
+
+        /* -------------------------------------------------------------
+           초공간 진공 흡입 액티브 스킬 (R 키로 발동, 히든 강화 1)
+        ------------------------------------------------------------- */
+        function triggerVacuumSkill() {
+            if (gameOver || upgradeMenuOpen || gameMode === 'menu' || isGameFinished) return;
+            if (!hiddenUpgrades.screenMagnet) {
+                logToTerminal("🔒 [스킬 잠김] '초공간 진공관' 히든 강화를 기지 엔지니어링실에서 먼저 해금해야 [R] 스킬을 쓸 수 있습니다!", "normal");
+                return;
+            }
+
+            if (vacuumSkill.timer <= 0) {
+                vacuumSkill.timer = vacuumSkill.cooldown;
+                vacuumSkill.duration = vacuumSkill.maxDuration;
+                sound.playVacuum();
+                screenShake = 9;
+
+                let countInScreen = 0;
+                collectibles.forEach(item => {
+                    if (!item.collected &&
+                        item.x + item.w >= camera.x && item.x <= camera.x + VIEW_WIDTH &&
+                        item.y + item.h >= camera.y && item.y <= camera.y + VIEW_HEIGHT) {
+                        countInScreen++;
+                        item.sonarHighlight = 6.0; // 진공 흡입 시 미니맵/화면에도 발광
+                    }
+                });
+
+                logToTerminal(`🌌 [초공간 진공 발동 (R)] 블랙홀 볼텍스가 가동되어 화면 내 보석 ${countInScreen}개를 강력하게 흡입합니다! (쿨다운: ${vacuumSkill.cooldown.toFixed(1)}s)`, "skill");
+            } else {
+                logToTerminal(`⏳ 초공간 진공 충전 대기 중... (${vacuumSkill.timer.toFixed(1)}초 남음)`, "normal");
+            }
+        }
+
+        /* -------------------------------------------------------------
+           강화 상점 시스템 UI (일반 10종 & 히든 3종)
+        ------------------------------------------------------------- */
+        const upgradePanel = document.getElementById('upgrade-panel');
+        const pointsDisplay = document.getElementById('upgrade-points-display');
+        const stationBadge = document.getElementById('station-badge');
+        const btnVision = document.getElementById('btn-upgrade-vision');
+        const btnLight = document.getElementById('btn-upgrade-light');
+        const btnSonar = document.getElementById('btn-upgrade-sonar');
+        const btnMagnet = document.getElementById('btn-upgrade-magnet');
+        const btnSpeed = document.getElementById('btn-upgrade-speed');
+        const btnHull = document.getElementById('btn-upgrade-hull');
+        const btnScoreMult = document.getElementById('btn-upgrade-scoremult');
+        const btnSkillDmg = document.getElementById('btn-upgrade-skilldmg');
+        const btnSkillRadius = document.getElementById('btn-upgrade-skillradius');
+        const btnSpawnDensity = document.getElementById('btn-upgrade-spawndensity');
+        const btnHiddenMagnet = document.getElementById('btn-hidden-magnet');
+        const btnHiddenVision = document.getElementById('btn-hidden-vision');
+        const btnHiddenNuke = document.getElementById('btn-hidden-nuke');
+        const hiddenLockedBox = document.getElementById('hidden-locked-box');
+        const hiddenUnlockedContainer = document.getElementById('hidden-unlocked-container');
+        const hiddenProgressText = document.getElementById('hidden-progress-text');
+        const btnClose = document.getElementById('btn-close-upgrade');
+
+        function openUpgradeMenu() {
+            if (gameMode === 'timeattack') return;
+            upgradeMenuOpen = true;
+            upgradePanel.style.display = 'block';
+            if (currentDockedBase) {
+                stationBadge.textContent = `📡 [도킹 접속 중] ${currentDockedBase.name}`;
+            }
+            updateUpgradeUI();
+        }
+
+        function closeUpgradeMenu() {
+            upgradeMenuOpen = false;
+            upgradePanel.style.display = 'none';
+        }
+
+        btnClose.addEventListener('click', () => closeUpgradeMenu());
+
+        function updateUpgradeUI() {
+            pointsDisplay.textContent = `보유 포인트: ${score.toLocaleString()} PTS`;
+
+            // 1. 주변 시야 확장
+            const vis = upgrades.vision;
+            const visCost = getUpgradeCost('vision');
+            document.getElementById('vision-title').textContent = `🔮 주변 360° 시야 확장 (Lv.${vis.level}/${vis.max})`;
+            btnVision.textContent = vis.level >= vis.max ? "최대 레벨" : `${visCost} P`;
+            btnVision.disabled = vis.level >= vis.max || score < visCost;
+
+            // 2. 전방 서치라이트
+            const lt = upgrades.light;
+            const ltCost = getUpgradeCost('light');
+            document.getElementById('light-title').textContent = `💡 전방 서치라이트 (Lv.${lt.level}/${lt.max})`;
+            btnLight.textContent = lt.level >= lt.max ? "최대 레벨" : `${ltCost} P`;
+            btnLight.disabled = lt.level >= lt.max || score < ltCost;
+
+            // 3. 레이더 쿨타임 단축
+            const sn = upgrades.sonar;
+            const snCost = getUpgradeCost('sonar');
+            const currentCd = getSonarCooldown();
+            document.getElementById('sonar-title').textContent = `📡 레이더 쿨타임 단축 (Lv.${sn.level}/${sn.max}) [${currentCd.toFixed(1)}s]`;
+            btnSonar.textContent = sn.level >= sn.max ? "최대 레벨" : `${snCost} P`;
+            btnSonar.disabled = sn.level >= sn.max || score < snCost;
+
+            // 4. 자석 흡인 범위
+            const mag = upgrades.magnet;
+            const magCost = getUpgradeCost('magnet');
+            document.getElementById('magnet-title').textContent = `🧲 수집 자력 인력 범위 (Lv.${mag.level}/${mag.max})`;
+            btnMagnet.textContent = mag.level >= mag.max ? "최대 레벨" : `${magCost} P`;
+            btnMagnet.disabled = mag.level >= mag.max || score < magCost;
+
+            // 5. 속도 가속
+            const spd = upgrades.speed;
+            const spdCost = getUpgradeCost('speed');
+            document.getElementById('speed-title').textContent = `⚡ 터보 엔진 출력 (Lv.${spd.level}/${spd.max})`;
+            btnSpeed.textContent = spd.level >= spd.max ? "최대 레벨" : `${spdCost} P`;
+            btnSpeed.disabled = spd.level >= spd.max || score < spdCost;
+
+            // 6. 내구도 복구 및 보강
+            const hl = upgrades.hull;
+            const hlCost = getUpgradeCost('hull');
+            const isFullAndMax = hl.currentHp >= hl.maxHp && hl.maxHp >= hl.maxLimit;
+            document.getElementById('hull-title').textContent = `🛡️ 선체 수리 & 보강 (HP: ${hl.currentHp}/${hl.maxHp} [최대 ${hl.maxLimit}])`;
+            btnHull.textContent = isFullAndMax ? "최대 상태" : `${hlCost} P`;
+            btnHull.disabled = isFullAndMax || score < hlCost;
+
+            // 7. 스코어 배수 증폭
+            const sm = upgrades.scoreMult;
+            const smCost = getUpgradeCost('scoreMult');
+            const currentMult = getScoreMultiplier();
+            document.getElementById('scoremult-title').textContent = `⭐ 스코어 획득 배수 (Lv.${sm.level}/${sm.max}) [${currentMult.toFixed(1)}x]`;
+            btnScoreMult.textContent = sm.level >= sm.max ? "최대 레벨" : `${smCost} P`;
+            btnScoreMult.disabled = sm.level >= sm.max || score < smCost;
+
+            // 8. 충격파 스킬 공격력
+            const sd = upgrades.skillDamage;
+            const sdCost = getUpgradeCost('skillDamage');
+            const curDmg = getSkillDamage();
+            document.getElementById('skilldmg-title').textContent = `💥 충격 펄스 캐논 공격력 (Lv.${sd.level}/${sd.max}) [DMG: ${curDmg}]`;
+            btnSkillDmg.textContent = sd.level >= sd.max ? "최대 레벨" : `${sdCost} P`;
+            btnSkillDmg.disabled = sd.level >= sd.max || score < sdCost;
+
+            // 9. 충격파 스킬 폭발 반경
+            const sr = upgrades.skillRadius;
+            const srCost = getUpgradeCost('skillRadius');
+            const curRad = getSkillRadius();
+            document.getElementById('skillradius-title').textContent = `🌊 충격 펄스 폭발 반경 (Lv.${sr.level}/${sr.max}) [${curRad}px]`;
+            btnSkillRadius.textContent = sr.level >= sr.max ? "최대 레벨" : `${srCost} P`;
+            btnSkillRadius.disabled = sr.level >= sr.max || score < srCost;
+
+            // 10. 보석 스폰 밀도 증강 (스코어 배수의 2배 비용)
+            const dpt = upgrades.spawnDensity;
+            const dptCost = getUpgradeCost('spawnDensity');
+            const targetCount = getCollectibleTargetCount();
+            document.getElementById('spawndensity-title').textContent = `💎 심해 보석 스폰 밀도 (Lv.${dpt.level}/${dpt.max}) [총 ${targetCount}개]`;
+            btnSpawnDensity.textContent = dpt.level >= dpt.max ? "최대 레벨" : `${dptCost} P`;
+            btnSpawnDensity.disabled = dpt.level >= dpt.max || score < dptCost;
+
+            // --- 히든 강화 시스템 잠금/해제 UI ---
+            const allMaxed = areAllRegularUpgradesMaxed();
+            const progress = getRegularUpgradesProgress();
+
+            if (allMaxed) {
+                if (!hasAnnouncedHiddenUnlock) {
+                    hasAnnouncedHiddenUnlock = true;
+                    sound.playHiddenUnlock();
+                    logToTerminal("✨ [히든 프로토콜 봉인 해제!] 모든 일반 강화(10종)를 마스터하여 초고대 심해 히든 강화가 개방되었습니다!", "upgrade");
+                }
+                hiddenLockedBox.style.display = 'none';
+                hiddenUnlockedContainer.style.display = 'block';
+
+                // 히든 1: 보석 진공 흡인 [R 액티브 스킬] (100,000 P)
+                if (hiddenUpgrades.screenMagnet) {
+                    btnHiddenMagnet.textContent = "해금 완료 [R 스킬]";
+                    btnHiddenMagnet.disabled = true;
+                } else {
+                    btnHiddenMagnet.textContent = `${HIDDEN_UPGRADE_COST.toLocaleString()} P`;
+                    btnHiddenMagnet.disabled = score < HIDDEN_UPGRADE_COST;
+                }
+
+                // 히든 2: 전체 시야 100% (100,000 P)
+                if (hiddenUpgrades.fullVision) {
+                    btnHiddenVision.textContent = "가동 중 (ON)";
+                    btnHiddenVision.disabled = true;
+                } else {
+                    btnHiddenVision.textContent = `${HIDDEN_UPGRADE_COST.toLocaleString()} P`;
+                    btnHiddenVision.disabled = score < HIDDEN_UPGRADE_COST;
+                }
+
+                // 히든 3: 화면 전역 적 절멸포 (100,000 P)
+                if (hiddenUpgrades.screenNuke) {
+                    btnHiddenNuke.textContent = "가동 중 (ON)";
+                    btnHiddenNuke.disabled = true;
+                } else {
+                    btnHiddenNuke.textContent = `${HIDDEN_UPGRADE_COST.toLocaleString()} P`;
+                    btnHiddenNuke.disabled = score < HIDDEN_UPGRADE_COST;
+                }
+            } else {
+                hiddenLockedBox.style.display = 'block';
+                hiddenUnlockedContainer.style.display = 'none';
+                hiddenProgressText.textContent = `달성도: ${progress.current} / ${progress.total} MAX`;
+            }
+        }
+
+        // 주변 시야 강화
+        btnVision.addEventListener('click', () => {
+            const vis = upgrades.vision;
+            const cost = getUpgradeCost('vision');
+            if (score >= cost && vis.level < vis.max) {
+                score -= cost;
+                vis.level++;
+                vis.radius += 20;
+                sound.playUpgrade();
+                logToTerminal(`🔧 [강화 완료] 주변 시야 반경이 Lv.${vis.level}(${vis.radius}px)로 확장되었습니다!`, "upgrade");
+                updateUpgradeUI();
+            }
+        });
+
+        // 서치라이트 강화
+        btnLight.addEventListener('click', () => {
+            const lt = upgrades.light;
+            const cost = getUpgradeCost('light');
+            if (score >= cost && lt.level < lt.max) {
+                score -= cost;
+                lt.level++;
+                lt.beamDist += 30;
+                lt.beamAngle += 3;
+                sound.playUpgrade();
+                logToTerminal(`🔧 [강화 완료] 전방 서치라이트 사거리가 Lv.${lt.level}로 향상되었습니다!`, "upgrade");
+                updateUpgradeUI();
+            }
+        });
+
+        // 레이더 쿨타임 감소 강화
+        btnSonar.addEventListener('click', () => {
+            const sn = upgrades.sonar;
+            const cost = getUpgradeCost('sonar');
+            if (score >= cost && sn.level < sn.max) {
+                score -= cost;
+                sn.level++;
+                sound.playUpgrade();
+                const newCd = getSonarCooldown();
+                logToTerminal(`🔧 [강화 완료] 레이더 쿨타임이 Lv.${sn.level} (${newCd.toFixed(1)}초)로 단축되었습니다!`, "upgrade");
+                updateUpgradeUI();
+            }
+        });
+
+        // 자석 강화
+        btnMagnet.addEventListener('click', () => {
+            const mag = upgrades.magnet;
+            const cost = getUpgradeCost('magnet');
+            if (score >= cost && mag.level < mag.max) {
+                score -= cost;
+                mag.level++;
+                mag.radius += 20;
+                mag.pullSpeed += 0.8;
+                sound.playUpgrade();
+                logToTerminal(`🔧 [강화 완료] 자력 수집 범위가 Lv.${mag.level}로 확장되었습니다!`, "upgrade");
+                updateUpgradeUI();
+            }
+        });
+
+        // 속도 강화
+        btnSpeed.addEventListener('click', () => {
+            const spd = upgrades.speed;
+            const cost = getUpgradeCost('speed');
+            if (score >= cost && spd.level < spd.max) {
+                score -= cost;
+                spd.level++;
+                spd.value += 0.45;
+                sound.playUpgrade();
+                logToTerminal(`🔧 [강화 완료] 추진 엔진 출력이 Lv.${spd.level}로 증강되었습니다!`, "upgrade");
+                updateUpgradeUI();
+            }
+        });
+
+        // 선체 수리 및 보강
+        btnHull.addEventListener('click', () => {
+            const hl = upgrades.hull;
+            const cost = getUpgradeCost('hull');
+            if (score >= cost) {
+                score -= cost;
+                if (hl.currentHp < hl.maxHp) {
+                    hl.currentHp++;
+                    logToTerminal(`🔧 [선체 수리] 파손된 장갑 1칸을 수리했습니다! (현재 HP: ${hl.currentHp}/${hl.maxHp})`, "upgrade");
+                } else if (hl.maxHp < hl.maxLimit) {
+                    hl.maxHp++;
+                    hl.currentHp = hl.maxHp;
+                    logToTerminal(`🔧 [장갑 증축] 최대 선체 내구도가 ${hl.maxHp}칸으로 보강되었습니다! (상한: ${hl.maxLimit})`, "upgrade");
+                }
+                sound.playUpgrade();
+                updateUpgradeUI();
+            }
+        });
+
+        // 7. 스코어 배수 강화 (1.0x -> 1.5x -> 2.0x -> 2.5x ...)
+        btnScoreMult.addEventListener('click', () => {
+            const sm = upgrades.scoreMult;
+            const cost = getUpgradeCost('scoreMult');
+            if (score >= cost && sm.level < sm.max) {
+                score -= cost;
+                sm.level++;
+                const newMult = getScoreMultiplier();
+                sound.playUpgrade();
+                logToTerminal(`⭐ [강화 완료] 스코어 획득 배수가 Lv.${sm.level} (${newMult.toFixed(1)}x)로 증폭되었습니다!`, "upgrade");
+                updateUpgradeUI();
+            }
+        });
+
+        // 8. 스킬 데미지 강화
+        btnSkillDmg.addEventListener('click', () => {
+            const sd = upgrades.skillDamage;
+            const cost = getUpgradeCost('skillDamage');
+            if (score >= cost && sd.level < sd.max) {
+                score -= cost;
+                sd.level++;
+                sound.playUpgrade();
+                logToTerminal(`💥 [강화 완료] 충격 펄스 공격력이 Lv.${sd.level} (DMG: ${getSkillDamage()})로 증가했습니다!`, "upgrade");
+                updateUpgradeUI();
+            }
+        });
+
+        // 9. 스킬 범위 강화
+        btnSkillRadius.addEventListener('click', () => {
+            const sr = upgrades.skillRadius;
+            const cost = getUpgradeCost('skillRadius');
+            if (score >= cost && sr.level < sr.max) {
+                score -= cost;
+                sr.level++;
+                sound.playUpgrade();
+                logToTerminal(`🌊 [강화 완료] 충격 펄스 폭발 반경이 Lv.${sr.level} (${getSkillRadius()}px)로 확장되었습니다!`, "upgrade");
+                updateUpgradeUI();
+            }
+        });
+
+        // 10. 보석 스폰 밀도 강화 (비용: 스코어 배수의 2배!)
+        btnSpawnDensity.addEventListener('click', () => {
+            const dpt = upgrades.spawnDensity;
+            const cost = getUpgradeCost('spawnDensity');
+            if (score >= cost && dpt.level < dpt.max) {
+                score -= cost;
+                dpt.level++;
+                sound.playUpgrade();
+                const curTarget = getCollectibleTargetCount();
+                // 부족한 보석 즉시 추가 스폰
+                while (collectibles.length < curTarget) {
+                    collectibles.push(spawnSingleItem(collectibles.length + 1));
+                }
+                logToTerminal(`💎 [강화 완료] 보석 스폰 밀도가 Lv.${dpt.level} (최대 ${curTarget}개)로 증강되었습니다!`, "upgrade");
+                updateUpgradeUI();
+            }
+        });
+
+        // 히든 1: 화면 내 모든 보석 자력 흡인 [R 액티브 스킬 해금] (100,000 P)
+        btnHiddenMagnet.addEventListener('click', () => {
+            if (areAllRegularUpgradesMaxed() && !hiddenUpgrades.screenMagnet && score >= HIDDEN_UPGRADE_COST) {
+                score -= HIDDEN_UPGRADE_COST;
+                hiddenUpgrades.screenMagnet = true;
+                sound.playHiddenUpgrade();
+                logToTerminal(`🌌 [히든 강화 각성!] 초공간 보석 진공관 해금! 이제 [R] 키로 화면 내 모든 보석을 블랙홀처럼 흡입할 수 있습니다!`, "skill");
+                updateUpgradeUI();
+            }
+        });
+
+        // 히든 2: 화면 전체 100% 시야 개방 (100,000 P)
+        btnHiddenVision.addEventListener('click', () => {
+            if (areAllRegularUpgradesMaxed() && !hiddenUpgrades.fullVision && score >= HIDDEN_UPGRADE_COST) {
+                score -= HIDDEN_UPGRADE_COST;
+                hiddenUpgrades.fullVision = true;
+                sound.playHiddenUpgrade();
+                logToTerminal(`👁️ [히든 강화 각성!] 심연의 천리안 활성화! 심해의 어둠이 사라지고 화면 전체의 시야가 100% 개방되었습니다!`, "skill");
+                updateUpgradeUI();
+            }
+        });
+
+        // 히든 3: 화면 내 모든 적 일격 절멸 스킬 (100,000 P)
+        btnHiddenNuke.addEventListener('click', () => {
+            if (areAllRegularUpgradesMaxed() && !hiddenUpgrades.screenNuke && score >= HIDDEN_UPGRADE_COST) {
+                score -= HIDDEN_UPGRADE_COST;
+                hiddenUpgrades.screenNuke = true;
+                sound.playHiddenUpgrade();
+                logToTerminal(`💥 [히든 강화 각성!] 네오 오메가 궤멸포 각성! 이제 충격 펄스 시 화면 내 모든 적을 전멸시킵니다!`, "skill");
+                updateUpgradeUI();
+            }
+        });
+
+        /* -------------------------------------------------------------
+           게임 모드 시작 / 종료 및 결과 화면 관리
+        ------------------------------------------------------------- */
+        function startGame(mode) {
+            gameMode = mode;
+            gameOver = false;
+            isGameFinished = false;
+            score = 0;
+            collectedCount = 0;
+            enemiesKilled = 0;
+            survivalTimer = 0.0;
+            timeAttackTimer = 300.0; // 5분
+            scannerSkill.timer = 0;
+            attackSkill.timer = 0;
+            attackSkill.waves = [];
+            vacuumSkill.timer = 0;
+            vacuumSkill.duration = 0;
+
+            submarine.x = 650;
+            submarine.y = 550;
+            submarine.vx = 0;
+            submarine.vy = 0;
+            submarine.facingRight = true;
+            submarine.invulnerableTimer = 0;
+            upgrades.hull.currentHp = upgrades.hull.maxHp;
+
+            const modeTag = document.getElementById('mode-info-tag');
+            if (mode === 'endless') {
+                modeTag.textContent = '무제한 모드: 난파될 때까지 끝없이 심해를 탐사하고 성장하세요!';
+                logToTerminal("🌊 [무제한 모드 시작] 끝없는 심해 탐사를 개시합니다! [WASD] 이동, [E] 공격, [Q] 소나, [U] 기지 강화", "skill");
+            } else if (mode === 'timeattack') {
+                modeTag.textContent = '시간제한 모드: 5분(300초) 동안 강화 없이 최고 점수를 획득하세요!';
+                logToTerminal("⏱️ [시간제한 모드 시작] 5분 타임어택 개시! 강화 없이 순수 기동으로 최대한 많은 점수를 인양하세요!", "skill");
+            } else if (mode === 'arcade') {
+                modeTag.textContent = '아케이드 모드: 목표 500,000 PTS를 달성하여 심해 탈출에 성공하세요!';
+                logToTerminal("🏆 [아케이드 모드 시작] 목표: 50만 PTS 달성! 적들을 격퇴하고 보물을 모아 미션을 완수하세요!", "skill");
+            }
+
+            generateRandomObstacles();
+            initCollectibles();
+            spawnEnemies();
+
+            document.getElementById('main-menu').style.display = 'none';
+            document.getElementById('result-screen').style.display = 'none';
+            closeUpgradeMenu();
+        }
+
+        function showResultScreen(title, desc, isVictory = false) {
+            isGameFinished = true;
+            const resScreen = document.getElementById('result-screen');
+            const resTitle = document.getElementById('result-title');
+            const resDesc = document.getElementById('result-desc');
+            const resScore = document.getElementById('result-score');
+            const resSalvage = document.getElementById('result-salvage');
+            const resKills = document.getElementById('result-kills');
+            const resTime = document.getElementById('result-time');
+
+            resTitle.textContent = title;
+            resTitle.style.color = isVictory ? '#4ade80' : (title.includes('난파') ? '#ef4444' : '#fbbf24');
+            resDesc.textContent = desc;
+
+            resScore.textContent = `최종 점수: ${score.toLocaleString()} PTS`;
+            resSalvage.textContent = `인양한 보물: ${collectedCount}개`;
+            resKills.textContent = `격퇴한 적: ${enemiesKilled}체`;
+
+            const mins = Math.floor(survivalTimer / 60);
+            const secs = Math.floor(survivalTimer % 60);
+            resTime.textContent = `생존 탐사 시간: ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
+            resScreen.style.display = 'flex';
+        }
+
+        function checkGameProgress() {
+            if (isGameFinished || gameOver || gameMode === 'menu') return;
+            if (gameMode === 'arcade' && score >= ARCADE_TARGET_SCORE) {
+                sound.playVictory();
+                logToTerminal("🏆 [미션 완수!] 목표 점수 500,000 PTS 달성! 심해 아케이드 탈출 작전 성공!", "upgrade");
+                showResultScreen("🏆 MISSION COMPLETE! 🏆", "500,000 PTS 목표 점수를 돌파하여 심해 탐사를 성공적으로 완수했습니다!", true);
+            }
+        }
+
+        // 모드 선택 버튼 이벤트 리스너
+        document.getElementById('btn-mode-endless').addEventListener('click', () => startGame('endless'));
+        document.getElementById('btn-mode-time').addEventListener('click', () => startGame('timeattack'));
+        document.getElementById('btn-mode-arcade').addEventListener('click', () => startGame('arcade'));
+
+        // 결과 화면 버튼 리스너
+        document.getElementById('btn-result-retry').addEventListener('click', () => {
+            startGame(gameMode === 'menu' ? 'endless' : gameMode);
+        });
+        document.getElementById('btn-result-menu').addEventListener('click', () => {
+            isGameFinished = false;
+            gameOver = false;
+            gameMode = 'menu';
+            document.getElementById('result-screen').style.display = 'none';
+            document.getElementById('main-menu').style.display = 'flex';
+            closeUpgradeMenu();
+        });
+
+        // 개발 및 테스트 편의를 위한 전역 디버그 함수
+        window.addScore = function(amount = 100000) {
+            score += amount;
+            logToTerminal(`🧪 [치트] 스코어 +${amount.toLocaleString()} PTS 지급 완료! (현재: ${score.toLocaleString()} PTS)`, 'upgrade');
+            checkGameProgress();
+            updateUpgradeUI();
+        };
+
+        window.maxAllUpgrades = function() {
+            Object.keys(upgrades).forEach(key => {
+                const up = upgrades[key];
+                if (key === 'hull') {
+                    up.maxHp = up.maxLimit;
+                    up.currentHp = up.maxLimit;
+                } else {
+                    up.level = up.max;
+                }
+            });
+            upgrades.vision.radius = 95 + (upgrades.vision.max - 1) * 20;
+            upgrades.light.beamDist = 170 + (upgrades.light.max - 1) * 30;
+            upgrades.magnet.radius = 45 + (upgrades.magnet.max - 1) * 20;
+            upgrades.speed.value = 3.6 + (upgrades.speed.max - 1) * 0.45;
+
+            // 보물 수량 즉시 증강
+            const curTarget = getCollectibleTargetCount();
+            while (collectibles.length < curTarget) {
+                collectibles.push(spawnSingleItem(collectibles.length + 1));
+            }
+
+            logToTerminal(`🧪 [치트] 일반 강화 10종이 모두 Lv.MAX로 설정되었습니다! 히든 프로토콜이 개방됩니다.`, 'skill');
+            updateUpgradeUI();
+        };
+
+        /* -------------------------------------------------------------
+           게임 리셋 (게임오버 시 새로운 탐사 시작)
+        ------------------------------------------------------------- */
+        function resetGame() {
+            gameOver = false;
+            upgrades.hull.currentHp = upgrades.hull.maxHp;
+            submarine.x = 400;
+            submarine.y = 420;
+            submarine.facingRight = true;
+            submarine.invulnerableTimer = 0;
+            collectedCount = 0;
+            score = 0;
+            generateRandomObstacles();
+            initCollectibles();
+            logToTerminal("🔄 [무제한 모드 재시작] 잠수정을 보수하여 새로운 심해 탐사를 개시합니다. (장애물 재배치)", "skill");
+        }
+
+        /* -------------------------------------------------------------
+           충돌 및 데미지 로직
+        ------------------------------------------------------------- */
+        function onWallCollide(hitLocation) {
+            if (submarine.invulnerableTimer > 0 || gameOver || gameMode === 'menu' || isGameFinished) return;
+
+            upgrades.hull.currentHp--;
+            submarine.invulnerableTimer = 1.3;
+            screenShake = 16;
+            sound.playHit();
+
+            logToTerminal(`⚠️ [피격/충돌 경고!] ${hitLocation}에 피격! 선체 내구도 감소 (-1) | 잔여 HP: [${upgrades.hull.currentHp}/${upgrades.hull.maxHp}]`, "warn");
+
+            if (upgrades.hull.currentHp <= 0) {
+                gameOver = true;
+                sound.playGameOver();
+                logToTerminal("💥 [난파 발생] 선체 내구도 소진! 잠수함이 심해 바닥으로 침몰했습니다...", "warn");
+                showResultScreen("💥 CRITICAL FAILURE!", "선체 내구도가 모두 소진되어 잠수함이 심해로 침몰했습니다.", false);
+            }
+        }
+
+        /* -------------------------------------------------------------
+           업데이트 루프 (적 AI 및 타이머 포함)
+        ------------------------------------------------------------- */
+        let lastTime = performance.now();
+
+        function update(dt) {
+            if (gameMode === 'menu' || isGameFinished || upgradeMenuOpen) return;
+
+            survivalTimer += dt;
+
+            // 시간제한 모드 카운트다운 (5분 타임어택)
+            if (gameMode === 'timeattack') {
+                timeAttackTimer -= dt;
+                if (timeAttackTimer <= 0) {
+                    timeAttackTimer = 0;
+                    sound.playVictory();
+                    logToTerminal("⏱️ [타임업!] 5분 제한 시간이 모두 종료되었습니다! 탐사 완료!", "upgrade");
+                    showResultScreen("⏱️ TIME OVER!", "5분(300초) 동안의 타임어택 탐사가 완료되었습니다! 기록을 확인하세요.", true);
+                    return;
+                }
+            }
+
+            // 아케이드 모드 점수 체크
+            checkGameProgress();
+
+            // 스크린 쉐이크 감쇄
+            if (screenShake > 0) {
+                screenShake *= 0.88;
+                if (screenShake < 0.3) screenShake = 0;
+            }
+
+            // 레이더 소나 쿨타임
+            if (scannerSkill.timer > 0) {
+                scannerSkill.timer = Math.max(0, scannerSkill.timer - dt);
+            }
+
+            // 소나 파동 팽창
+            if (scannerSkill.activeWave) {
+                scannerSkill.activeWave.radius += scannerSkill.activeWave.speed;
+                if (scannerSkill.activeWave.radius > scannerSkill.activeWave.maxRadius) {
+                    scannerSkill.activeWave = null;
+                }
+            }
+
+            // 공격 스킬 쿨타임 및 충격파 링 애니메이션
+            if (attackSkill.timer > 0) {
+                attackSkill.timer = Math.max(0, attackSkill.timer - dt);
+            }
+            for (let i = attackSkill.waves.length - 1; i >= 0; i--) {
+                const w = attackSkill.waves[i];
+                w.radius += w.speed;
+                if (w.radius >= w.maxRadius) {
+                    attackSkill.waves.splice(i, 1);
+                }
+            }
+
+            // 초공간 진공 흡입 스킬 [R] 타이머
+            if (vacuumSkill.timer > 0) {
+                vacuumSkill.timer = Math.max(0, vacuumSkill.timer - dt);
+            }
+            if (vacuumSkill.duration > 0) {
+                vacuumSkill.duration = Math.max(0, vacuumSkill.duration - dt);
+            }
+
+            // 장애물 소나 핑 감쇄
+            obstacles.forEach(obs => {
+                if (obs.sonarPing > 0) obs.sonarPing = Math.max(0, obs.sonarPing - dt);
+            });
+
+            // 기포 애니메이션
+            bubbles.forEach(b => {
+                b.y -= b.speed;
+                b.wobble += 0.05;
+                b.x += Math.sin(b.wobble) * 0.4;
+                if (b.y < 0) {
+                    b.y = WORLD_HEIGHT + 10;
+                    b.x = Math.random() * WORLD_WIDTH;
+                }
+            });
+
+            // 스파클 파티클
+            for (let i = sparkles.length - 1; i >= 0; i--) {
+                const s = sparkles[i];
+                s.x += s.vx;
+                s.y += s.vy;
+                s.life -= s.decay;
+                if (s.life <= 0) sparkles.splice(i, 1);
+            }
+
+            if (gameOver) return;
+
+            // 무적 타이머
+            if (submarine.invulnerableTimer > 0) {
+                submarine.invulnerableTimer -= dt;
+            }
+
+            // 잠수정 조작 이동
+            const spd = upgrades.speed.value;
+            let moveX = 0, moveY = 0;
+
+            if (keys['arrowleft'] || keys['a']) { moveX -= 1; submarine.facingRight = false; }
+            if (keys['arrowright'] || keys['d']) { moveX += 1; submarine.facingRight = true; }
+            if (keys['arrowup'] || keys['w']) moveY -= 1;
+            if (keys['arrowdown'] || keys['s']) moveY += 1;
+
+            if (moveX !== 0 && moveY !== 0) {
+                moveX *= 0.7071;
+                moveY *= 0.7071;
+            }
+
+            submarine.x += moveX * spd;
+            submarine.y += moveY * spd;
+            submarine.animTimer += 0.08;
+
+            // 월드 외곽 경계벽 충돌 판정
+            const hb = submarine.getHitbox();
+            let collidedWall = null;
+
+            if (hb.x <= 10) {
+                submarine.x = 10;
+                collidedWall = "서쪽 외곽 암벽";
+            } else if (hb.x + hb.w >= WORLD_WIDTH - 10) {
+                submarine.x = WORLD_WIDTH - 10 - submarine.width;
+                collidedWall = "동쪽 외곽 암벽";
+            }
+
+            if (hb.y <= 65) {
+                submarine.y = 67;
+                collidedWall = "해수면 부표 경계";
+            } else if (hb.y + hb.h >= WORLD_HEIGHT - 40) {
+                submarine.y = WORLD_HEIGHT - 40 - submarine.height;
+                collidedWall = "최심부 해저 지반";
+            }
+
+            if (collidedWall) {
+                onWallCollide(collidedWall);
+            }
+
+            // 장애물 암초와의 충돌 판정 및 밀어내기
+            const currentHb = submarine.getHitbox();
+            for (const obs of obstacles) {
+                if (
+                    currentHb.x < obs.x + obs.w &&
+                    currentHb.x + currentHb.w > obs.x &&
+                    currentHb.y < obs.y + obs.h &&
+                    currentHb.y + currentHb.h > obs.y
+                ) {
+                    const overlapLeft = (currentHb.x + currentHb.w) - obs.x;
+                    const overlapRight = (obs.x + obs.w) - currentHb.x;
+                    const overlapTop = (currentHb.y + currentHb.h) - obs.y;
+                    const overlapBottom = (obs.y + obs.h) - currentHb.y;
+
+                    const minOverlapX = Math.min(overlapLeft, overlapRight);
+                    const minOverlapY = Math.min(overlapTop, overlapBottom);
+
+                    if (minOverlapX < minOverlapY) {
+                        if (overlapLeft < overlapRight) {
+                            submarine.x -= overlapLeft;
+                        } else {
+                            submarine.x += overlapRight;
+                        }
+                    } else {
+                        if (overlapTop < overlapBottom) {
+                            submarine.y -= overlapTop;
+                        } else {
+                            submarine.y += overlapBottom;
+                        }
+                    }
+
+                    onWallCollide("해저 암초 기둥");
+                    break;
+                }
+            }
+
+            // -------------------------------------------------------------
+            // 적(Enemies) AI 업데이트 및 플레이어 충돌 판정
+            // -------------------------------------------------------------
+            const subCenterX = submarine.x + submarine.width / 2;
+            const subCenterY = submarine.y + submarine.height / 2;
+            const subPlayerHb = submarine.getHitbox();
+
+            enemies.forEach(en => {
+                if (!en.alive) {
+                    en.respawnTimer -= dt;
+                    if (en.respawnTimer <= 0) {
+                        const pos = findValidEnemyPosition(700);
+                        en.x = pos.x;
+                        en.y = pos.y;
+                        en.baseY = pos.y;
+                        en.hp = en.maxHp;
+                        en.alive = true;
+                    }
+                    return;
+                }
+
+                // 1) 추적형 적 AI (플레이어 감지 시 추적)
+                if (en.type === 'chaser') {
+                    const ecx = en.x + en.w / 2;
+                    const ecy = en.y + en.h / 2;
+                    const distToSub = Math.hypot(subCenterX - ecx, subCenterY - ecy);
+
+                    if (distToSub < en.detectRange) {
+                        en.x += ((subCenterX - ecx) / distToSub) * en.speed;
+                        en.y += ((subCenterY - ecy) / distToSub) * en.speed;
+                        en.facingRight = (subCenterX >= ecx);
+                    }
+                } else if (en.type === 'mine') {
+                    // 2) 고정형 기뢰 (제자리 부유)
+                    en.floatPhase += 0.04;
+                    en.y = en.baseY + Math.sin(en.floatPhase) * 5;
+                }
+
+                // 3) 기지 안전 구역(강화실 구역) 침입 차단 방어막 (적 진입 불가!)
+                baseStations.forEach(base => {
+                    const bcx = base.x + base.w / 2;
+                    const bcy = base.y + base.h / 2;
+                    const safeBarrier = base.dockRadius + 25; // 기지 방어막 안전 반경
+                    const ecx = en.x + en.w / 2;
+                    const ecy = en.y + en.h / 2;
+                    const distToBase = Math.hypot(ecx - bcx, ecy - bcy);
+
+                    if (distToBase < safeBarrier) {
+                        // 안전 방어막 경계선 밖으로 적을 밀어냄
+                        const pushAngle = Math.atan2(ecy - bcy, ecx - bcx);
+                        en.x = bcx + Math.cos(pushAngle) * safeBarrier - en.w / 2;
+                        en.y = bcy + Math.sin(pushAngle) * safeBarrier - en.h / 2;
+
+                        if (Math.random() < 0.08) {
+                            sparkles.push({
+                                x: ecx, y: ecy,
+                                vx: Math.cos(pushAngle) * 2,
+                                vy: Math.sin(pushAngle) * 2,
+                                life: 0.35,
+                                decay: 0.07,
+                                size: 2,
+                                color: '#38bdf8'
+                            });
+                        }
+                    }
+                });
+
+                // 플레이어와의 충돌 판정
+                const enHb = { x: en.x + 3, y: en.y + 3, w: en.w - 6, h: en.h - 6 };
+                if (
+                    subPlayerHb.x < enHb.x + enHb.w &&
+                    subPlayerHb.x + subPlayerHb.w > enHb.x &&
+                    subPlayerHb.y < enHb.y + enHb.h &&
+                    subPlayerHb.y + subPlayerHb.h > enHb.y
+                ) {
+                    onWallCollide(en.name);
+                }
+            });
+
+            // 도킹 상태 실시간 갱신
+            checkDockStatus();
+
+            // -------------------------------------------------------------
+            // 보물 아이템 처리 (무제한 모드 & 스폰 밀도 지원)
+            // -------------------------------------------------------------
+            const magnetRadius = upgrades.magnet.radius;
+            const pullSpeed = upgrades.magnet.pullSpeed;
+            const newHb = submarine.getHitbox();
+
+            collectibles.forEach(item => {
+                if (item.collected) {
+                    if (item.respawnTimer > 0) {
+                        item.respawnTimer -= dt;
+                        if (item.respawnTimer <= 0) {
+                            const tmpl = itemTemplates[Math.floor(Math.random() * itemTemplates.length)];
+                            const pos = findValidItemPosition(tmpl.canvas.width, tmpl.canvas.height);
+                            item.name = tmpl.name;
+                            item.type = tmpl.type;
+                            item.canvas = tmpl.canvas;
+                            item.color = tmpl.color;
+                            item.score = tmpl.score;
+                            item.x = pos.x;
+                            item.y = pos.y;
+                            item.baseY = pos.y;
+                            item.collected = false;
+                            item.sonarHighlight = 0;
+                        }
+                    }
+                    return;
+                }
+
+                item.phase += 0.06;
+                item.y = item.baseY + Math.sin(item.phase) * 5;
+
+                if (item.sonarHighlight > 0) {
+                    item.sonarHighlight = Math.max(0, item.sonarHighlight - dt);
+                }
+
+                // 자석 인력 효과 및 히든 강화(화면 내 모든 보석 자력 흡인)
+                const dx = subCenterX - (item.x + item.w / 2);
+                const dy = subCenterY - (item.y + item.h / 2);
+                const dist = Math.hypot(dx, dy);
+
+                const isInScreen = (
+                    item.x + item.w >= camera.x &&
+                    item.x <= camera.x + VIEW_WIDTH &&
+                    item.y + item.h >= camera.y &&
+                    item.y <= camera.y + VIEW_HEIGHT
+                );
+
+                if (vacuumSkill.duration > 0 && isInScreen) {
+                    const screenPullSpd = Math.max(30, pullSpeed * 4.8);
+                    if (dist > 1) {
+                        item.x += (dx / dist) * screenPullSpd;
+                        item.baseY += (dy / dist) * screenPullSpd;
+                        item.y = item.baseY;
+                    }
+                    if (Math.random() < 0.28) {
+                        sparkles.push({
+                            x: item.x + item.w / 2,
+                            y: item.y + item.h / 2,
+                            vx: (dx / dist) * 2.5 + (Math.random() - 0.5),
+                            vy: (dy / dist) * 2.5 + (Math.random() - 0.5),
+                            life: 0.5,
+                            decay: 0.06,
+                            size: 2.5,
+                            color: '#d946ef'
+                        });
+                    }
+                } else if (dist < magnetRadius) {
+                    item.x += (dx / dist) * pullSpeed;
+                    item.baseY += (dy / dist) * pullSpeed;
+                }
+
+                // 충돌 수집 판정
+                const itemHitbox = { x: item.x, y: item.y, w: item.w, h: item.h };
+                if (
+                    newHb.x < itemHitbox.x + itemHitbox.w &&
+                    newHb.x + newHb.w > itemHitbox.x &&
+                    newHb.y < itemHitbox.y + itemHitbox.h &&
+                    newHb.y + newHb.h > itemHitbox.y
+                ) {
+                    item.collected = true;
+                    // 빠른 초고속 리스폰 (강화에 따라 1.2s -> 0.2s까지 단축!)
+                    const respawnBase = Math.max(0.2, 1.2 - (upgrades.spawnDensity.level - 1) * 0.035);
+                    item.respawnTimer = respawnBase + Math.random() * 0.5;
+                    collectedCount++;
+                    
+                    const mult = getScoreMultiplier();
+                    const gainedScore = Math.round(item.score * mult);
+                    score += gainedScore;
+                    sound.playCollect();
+                    addSparkles(item.x + item.w / 2, item.y + item.h / 2, item.color);
+
+                    logToTerminal(
+                        `💎 [수집 완료] '${item.name}' 획득! (+${gainedScore}P [${mult.toFixed(1)}x]) | 총 인양: [${collectedCount}개] | 누적: ${score.toLocaleString()} PTS`,
+                        "collect"
+                    );
+
+                    checkGameProgress();
+                }
+            });
+
+            // 카메라 위치 갱신
+            camera.update(submarine.x + submarine.width / 2, submarine.y + submarine.height / 2);
+        }
+
+        /* -------------------------------------------------------------
+           렌더링 루프
+        ------------------------------------------------------------- */
+        function render() {
+            ctx.save();
+
+            // 화면 쉐이크
+            if (screenShake > 0) {
+                const ox = (Math.random() - 0.5) * screenShake;
+                const oy = (Math.random() - 0.5) * screenShake;
+                ctx.translate(ox, oy);
+            }
+
+            // 카메라 변환 적용 (월드 렌더링)
+            ctx.save();
+            ctx.translate(-Math.floor(camera.x), -Math.floor(camera.y));
+
+            // 1. 월드 배경 그라데이션
+            const bgGrad = ctx.createLinearGradient(0, 0, 0, WORLD_HEIGHT);
+            bgGrad.addColorStop(0, '#0c1e3d');
+            bgGrad.addColorStop(0.4, '#041126');
+            bgGrad.addColorStop(1, '#01040f');
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+
+            // 월드 테두리 경계선
+            ctx.strokeStyle = '#0284c7';
+            ctx.lineWidth = 6;
+            ctx.strokeRect(4, 4, WORLD_WIDTH - 8, WORLD_HEIGHT - 8);
+
+            // 2. 장애물 암초들 렌더링
+            obstacles.forEach(obs => {
+                ctx.save();
+                ctx.fillStyle = obs.color;
+                ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+
+                ctx.strokeStyle = obs.borderColor;
+                ctx.lineWidth = 2.5;
+                ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
+
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+                ctx.fillRect(obs.x + 4, obs.y + 4, obs.w - 8, obs.h - 8);
+
+                if (obs.sonarPing > 0) {
+                    ctx.strokeStyle = `rgba(56, 189, 248, ${Math.min(1.0, obs.sonarPing * 0.4)})`;
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(obs.x - 2, obs.y - 2, obs.w + 4, obs.h + 4);
+                }
+                ctx.restore();
+            });
+
+            // 3. 심해 보급 기지 & 안전 방어막 렌더링
+            baseStations.forEach(base => {
+                ctx.save();
+                const bcx = base.x + base.w / 2;
+                const bcy = base.y + base.h / 2;
+
+                // 안전 방어막 돔 쉴드 (적 침입 불가)
+                ctx.strokeStyle = base.color;
+                ctx.lineWidth = 2.5;
+                ctx.globalAlpha = 0.4 + Math.sin(Date.now() * 0.005) * 0.2;
+                ctx.beginPath();
+                ctx.arc(bcx, bcy, base.dockRadius + 25, 0, Math.PI * 2);
+                ctx.stroke();
+
+                ctx.fillStyle = 'rgba(2, 132, 199, 0.15)';
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+
+                ctx.drawImage(pixelBase, base.x, base.y);
+
+                ctx.fillStyle = '#7dd3fc';
+                ctx.font = 'bold 12px Consolas';
+                ctx.textAlign = 'center';
+                ctx.fillText(`⚓ ${base.name}`, bcx, base.y - 14);
+
+                ctx.font = 'bold 10px Consolas';
+                ctx.fillStyle = '#10b981';
+                ctx.fillText(`[🛡️ 안전 구역: 적 진입 불가]`, bcx, base.y - 2);
+                ctx.restore();
+            });
+
+            // 4. 기포 렌더링
+            ctx.fillStyle = 'rgba(125, 211, 252, 0.45)';
+            bubbles.forEach(b => {
+                if (b.x >= camera.x - 10 && b.x <= camera.x + VIEW_WIDTH + 10 &&
+                    b.y >= camera.y - 10 && b.y <= camera.y + VIEW_HEIGHT + 10) {
+                    ctx.fillRect(Math.floor(b.x), Math.floor(b.y), b.size, b.size);
+                }
+            });
+
+            // 5. 보물 아이템들 렌더링
+            collectibles.forEach(item => {
+                if (item.collected) return;
+                if (item.x < camera.x - 50 || item.x > camera.x + VIEW_WIDTH + 50 ||
+                    item.y < camera.y - 50 || item.y > camera.y + VIEW_HEIGHT + 50) return;
+
+                ctx.fillStyle = item.color;
+                ctx.globalAlpha = 0.3;
+                ctx.beginPath();
+                ctx.arc(item.x + item.w / 2, item.y + item.h / 2, 15, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+
+                ctx.drawImage(item.canvas, Math.floor(item.x), Math.floor(item.y));
+            });
+
+            // 5-1. 심해 위험 생물 및 기계(적) 렌더링
+            enemies.forEach(en => {
+                if (!en.alive) return;
+                if (en.x < camera.x - 70 || en.x > camera.x + VIEW_WIDTH + 70 ||
+                    en.y < camera.y - 70 || en.y > camera.y + VIEW_HEIGHT + 70) return;
+
+                ctx.save();
+                const drawEx = Math.floor(en.x);
+                const drawEy = Math.floor(en.y);
+
+                // 고정형 기뢰: 주기적인 붉은 경고 펄스
+                if (en.type === 'mine') {
+                    ctx.strokeStyle = 'rgba(239, 68, 68, 0.45)';
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.arc(en.x + en.w / 2, en.y + en.h / 2, 20 + Math.sin(Date.now() * 0.009) * 4, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+
+                if (en.type === 'chaser' && !en.facingRight) {
+                    ctx.translate(drawEx + en.w, drawEy);
+                    ctx.scale(-1, 1);
+                    ctx.drawImage(en.canvas, 0, 0);
+                } else {
+                    ctx.drawImage(en.canvas, drawEx, drawEy);
+                }
+
+                // 적 체력 게이지 (체력 손실 시)
+                if (en.maxHp > 1 && en.hp < en.maxHp) {
+                    ctx.fillStyle = '#1e293b';
+                    ctx.fillRect(drawEx, drawEy - 7, en.w, 4);
+                    ctx.fillStyle = '#ef4444';
+                    ctx.fillRect(drawEx, drawEy - 7, en.w * (en.hp / en.maxHp), 4);
+                }
+                ctx.restore();
+            });
+
+            // 6. 잠수정 본체 렌더링
+            const floatOffset = Math.sin(submarine.animTimer) * 2.5;
+            const drawY = Math.floor(submarine.y + floatOffset);
+            const drawX = Math.floor(submarine.x);
+            const isFlashing = submarine.invulnerableTimer > 0 && Math.floor(submarine.invulnerableTimer * 14) % 2 === 0;
+
+            if (!isFlashing) {
+                ctx.save();
+                if (gameOver) {
+                    ctx.drawImage(pixelWreck, drawX, drawY);
+                } else {
+                    if (submarine.facingRight) {
+                        ctx.drawImage(pixelSubRight, drawX, drawY);
+                    } else {
+                        ctx.translate(drawX + submarine.width, drawY);
+                        ctx.scale(-1, 1);
+                        ctx.drawImage(pixelSubRight, 0, 0);
+                    }
+                }
+                ctx.restore();
+            }
+
+            // 7. 파티클
+            sparkles.forEach(s => {
+                ctx.fillStyle = s.color;
+                ctx.globalAlpha = Math.max(0, s.life);
+                ctx.fillRect(Math.floor(s.x), Math.floor(s.y), s.size, s.size);
+            });
+            ctx.globalAlpha = 1.0;
+
+            // 8. 심해 어둠 및 조명 시야 마스크
+            renderDeepSeaLighting();
+
+            // 9. 레이더(소나) 스캔 파동 링
+            if (scannerSkill.activeWave) {
+                const w = scannerSkill.activeWave;
+                ctx.save();
+                ctx.strokeStyle = '#c084fc';
+                ctx.lineWidth = 3.5;
+                ctx.shadowColor = '#a855f7';
+                ctx.shadowBlur = 18;
+                ctx.beginPath();
+                ctx.arc(w.x, w.y, w.radius, 0, Math.PI * 2);
+                ctx.stroke();
+
+                if (w.radius > 35) {
+                    ctx.strokeStyle = 'rgba(192, 132, 252, 0.4)';
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.arc(w.x, w.y, w.radius - 25, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+
+            // 9-1. 충격 펄스 공격 스킬 파동 링
+            attackSkill.waves.forEach(w => {
+                ctx.save();
+                ctx.strokeStyle = w.color;
+                ctx.lineWidth = w.lineWidth || 4;
+                ctx.shadowColor = w.color;
+                ctx.shadowBlur = 16;
+                ctx.beginPath();
+                ctx.arc(w.x, w.y, w.radius, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.restore();
+            });
+
+            // 9-2. 초공간 진공 볼텍스 이펙트 [R]
+            if (vacuumSkill.duration > 0) {
+                const subCx = submarine.x + submarine.width / 2;
+                const subCy = submarine.y + submarine.height / 2;
+                ctx.save();
+                const rot = Date.now() * 0.012;
+
+                const vGrad = ctx.createRadialGradient(subCx, subCy, 10, subCx, subCy, 240);
+                vGrad.addColorStop(0, 'rgba(217, 70, 239, 0.55)');
+                vGrad.addColorStop(0.4, 'rgba(168, 85, 247, 0.28)');
+                vGrad.addColorStop(0.8, 'rgba(56, 189, 248, 0.12)');
+                vGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                ctx.fillStyle = vGrad;
+                ctx.beginPath();
+                ctx.arc(subCx, subCy, 240, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.strokeStyle = '#d946ef';
+                ctx.lineWidth = 3;
+                ctx.shadowColor = '#f0abfc';
+                ctx.shadowBlur = 14;
+                for (let i = 0; i < 4; i++) {
+                    const ringProg = ((Date.now() * 0.18 + i * 55) % 220);
+                    const r = 220 - ringProg;
+                    ctx.beginPath();
+                    ctx.arc(subCx, subCy, Math.max(8, r), rot + i * 1.57, rot + i * 1.57 + Math.PI);
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+
+            // 스캔 하이라이트 마커
+            collectibles.forEach(item => {
+                if (!item.collected && item.sonarHighlight > 0) {
+                    ctx.save();
+                    const alpha = Math.min(1.0, item.sonarHighlight);
+                    ctx.strokeStyle = '#38bdf8';
+                    ctx.lineWidth = 2;
+                    ctx.shadowColor = '#38bdf8';
+                    ctx.shadowBlur = 12;
+                    ctx.globalAlpha = alpha;
+
+                    const cx = item.x + item.w / 2;
+                    const cy = item.y + item.h / 2;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, 20 + Math.sin(Date.now() * 0.01) * 3, 0, Math.PI * 2);
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#f8fafc';
+                    ctx.font = '11px Consolas';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(`[${item.name}]`, cx, cy - 25);
+                    ctx.restore();
+                }
+            });
+
+            // 10. 요구사항 반영: 잠수정에서 기지 위치를 알려주는 나침반 화살표 인디케이터
+            renderBaseIndicator();
+
+            ctx.restore(); // 월드 카메라 해제
+
+            // 11. HUD 대시보드 렌더링 (화면 고정)
+            renderHUD();
+
+            // 11-1. 신규: 우측 상단 소나 레이더 미니맵 (내 위치 & 레이더 가동 시 주변 광물 탐지)
+            renderMinimap();
+
+            // 12. 게임 오버 팝업 (무제한 모드이므로 난파 시에만 표시)
+            if (gameOver) {
+                renderGameOverScreen();
+            }
+
+            ctx.restore();
+        }
+
+        /* -------------------------------------------------------------
+           잠수정 주변 기지 방향 안내 화살표 인디케이터
+        ------------------------------------------------------------- */
+        function renderBaseIndicator() {
+            if (gameOver || isCurrentlyDocked) return;
+
+            const subCx = submarine.x + submarine.width / 2;
+            const subCy = submarine.y + submarine.height / 2;
+
+            // 가장 가까운 기지 탐색
+            let nearestBase = baseStations[0];
+            let minDist = Infinity;
+
+            baseStations.forEach(base => {
+                const bcx = base.x + base.w / 2;
+                const bcy = base.y + base.h / 2;
+                const d = Math.hypot(bcx - subCx, bcy - subCy);
+                if (d < minDist) {
+                    minDist = d;
+                    nearestBase = base;
+                }
+            });
+
+            const bcx = nearestBase.x + nearestBase.w / 2;
+            const bcy = nearestBase.y + nearestBase.h / 2;
+            const angle = Math.atan2(bcy - subCy, bcx - subCx);
+
+            // 잠수정 중심 둘레를 공전하는 화살표 궤도 반경 (펄스 효과)
+            const pulse = Math.sin(Date.now() * 0.007) * 4;
+            const indicatorRadius = 55 + pulse;
+            const arrowX = subCx + Math.cos(angle) * indicatorRadius;
+            const arrowY = subCy + Math.sin(angle) * indicatorRadius;
+
+            ctx.save();
+            ctx.translate(arrowX, arrowY);
+            ctx.rotate(angle);
+
+            // 빛나는 네온 화살표
+            const themeColor = nearestBase.color || '#38bdf8';
+            ctx.fillStyle = themeColor;
+            ctx.shadowColor = themeColor;
+            ctx.shadowBlur = 12;
+
+            ctx.beginPath();
+            ctx.moveTo(10, 0);       // 화살촉
+            ctx.lineTo(-7, -6);     // 상단 날개
+            ctx.lineTo(-3, 0);      // 내부 중심
+            ctx.lineTo(-7, 6);      // 하단 날개
+            ctx.closePath();
+            ctx.fill();
+
+            // 날개 테두리
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+            ctx.restore();
+
+            // 화살표 바깥쪽에 거리 안내 태그
+            ctx.save();
+            const textDist = indicatorRadius + 16;
+            const labelX = subCx + Math.cos(angle) * textDist;
+            const labelY = subCy + Math.sin(angle) * textDist;
+
+            ctx.font = 'bold 10px Consolas';
+            ctx.fillStyle = '#7dd3fc';
+            ctx.shadowColor = '#0369a1';
+            ctx.shadowBlur = 8;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(`⚓ ${Math.floor(minDist)}m`, labelX, labelY);
+            ctx.restore();
+        }
+
+        /* -------------------------------------------------------------
+           어둠 마스크 및 조명 효과
+        ------------------------------------------------------------- */
+        function renderDeepSeaLighting() {
+            // 히든 강화 2: 화면 전체 100% 시야 개방 (심해 어둠 장막 완전 해제)
+            if (hiddenUpgrades.fullVision) {
+                // 서치라이트 빔 틴트만 은은하게 렌더링
+                const beamDist = upgrades.light.beamDist;
+                const halfSpread = (upgrades.light.beamAngle || 45) * 1.1;
+                const startX = submarine.facingRight
+                    ? (submarine.x + submarine.width - 4)
+                    : (submarine.x + 4);
+                const dir = submarine.facingRight ? 1 : -1;
+                const subCenterY = submarine.y + submarine.height / 2;
+
+                ctx.save();
+                ctx.fillStyle = 'rgba(254, 240, 138, 0.06)';
+                ctx.beginPath();
+                ctx.moveTo(startX, subCenterY - 6);
+                ctx.lineTo(startX + beamDist * dir, subCenterY - halfSpread);
+                ctx.lineTo(startX + (beamDist + 35) * dir, subCenterY);
+                ctx.lineTo(startX + beamDist * dir, subCenterY + halfSpread);
+                ctx.lineTo(startX, subCenterY + 6);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+                return;
+            }
+
+            const lightCanvas = document.createElement('canvas');
+            lightCanvas.width = VIEW_WIDTH;
+            lightCanvas.height = VIEW_HEIGHT;
+            const lctx = lightCanvas.getContext('2d');
+
+            lctx.fillStyle = 'rgba(1, 4, 15, 0.94)';
+            lctx.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
+
+            lctx.globalCompositeOperation = 'destination-out';
+
+            const screenSubCx = (submarine.x + submarine.width / 2) - camera.x;
+            const screenSubCy = (submarine.y + submarine.height / 2) - camera.y;
+
+            // 잠수정 주변 360° 시야 확장
+            const visionRadius = upgrades.vision.radius;
+            const radGrad = lctx.createRadialGradient(screenSubCx, screenSubCy, 15, screenSubCx, screenSubCy, visionRadius);
+            radGrad.addColorStop(0, 'rgba(0, 0, 0, 1.0)');
+            radGrad.addColorStop(0.7, 'rgba(0, 0, 0, 0.85)');
+            radGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            lctx.fillStyle = radGrad;
+            lctx.beginPath();
+            lctx.arc(screenSubCx, screenSubCy, visionRadius, 0, Math.PI * 2);
+            lctx.fill();
+
+            // 전방 서치라이트 투광등
+            const beamDist = upgrades.light.beamDist;
+            const halfSpread = (upgrades.light.beamAngle || 45) * 1.1;
+            const startX = submarine.facingRight
+                ? (submarine.x + submarine.width - 4) - camera.x
+                : (submarine.x + 4) - camera.x;
+            const dir = submarine.facingRight ? 1 : -1;
+
+            const conePoly = [
+                [startX, screenSubCy - 6],
+                [startX + beamDist * dir, screenSubCy - halfSpread],
+                [startX + (beamDist + 35) * dir, screenSubCy],
+                [startX + beamDist * dir, screenSubCy + halfSpread],
+                [startX, screenSubCy + 6]
+            ];
+
+            lctx.beginPath();
+            lctx.moveTo(conePoly[0][0], conePoly[0][1]);
+            for (let i = 1; i < conePoly.length; i++) {
+                lctx.lineTo(conePoly[i][0], conePoly[i][1]);
+            }
+            lctx.closePath();
+
+            const coneGrad = lctx.createRadialGradient(startX, screenSubCy, 10, startX + beamDist * dir * 0.7, screenSubCy, beamDist);
+            coneGrad.addColorStop(0, 'rgba(0, 0, 0, 0.95)');
+            coneGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            lctx.fillStyle = coneGrad;
+            lctx.fill();
+
+            // 보급 기지 주변 조명
+            baseStations.forEach(base => {
+                const screenBaseCx = (base.x + base.w / 2) - camera.x;
+                const screenBaseCy = (base.y + base.h / 2) - camera.y;
+
+                if (screenBaseCx >= -150 && screenBaseCx <= VIEW_WIDTH + 150 &&
+                    screenBaseCy >= -150 && screenBaseCy <= VIEW_HEIGHT + 150) {
+                    const baseGrad = lctx.createRadialGradient(screenBaseCx, screenBaseCy, 20, screenBaseCx, screenBaseCy, base.dockRadius);
+                    baseGrad.addColorStop(0, 'rgba(0, 0, 0, 0.9)');
+                    baseGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                    lctx.fillStyle = baseGrad;
+                    lctx.beginPath();
+                    lctx.arc(screenBaseCx, screenBaseCy, base.dockRadius, 0, Math.PI * 2);
+                    lctx.fill();
+                }
+            });
+
+            ctx.drawImage(lightCanvas, camera.x, camera.y);
+
+            // 헤드라이트 틴트
+            ctx.save();
+            ctx.fillStyle = 'rgba(254, 240, 138, 0.08)';
+            ctx.beginPath();
+            ctx.moveTo(conePoly[0][0] + camera.x, conePoly[0][1] + camera.y);
+            for (let i = 1; i < conePoly.length; i++) {
+                ctx.lineTo(conePoly[i][0] + camera.x, conePoly[i][1] + camera.y);
+            }
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
+
+        /* -------------------------------------------------------------
+           HUD 대시보드 렌더링 (모드별 상태 표시 지원)
+        ------------------------------------------------------------- */
+        function renderHUD() {
+            ctx.save();
+            ctx.fillStyle = 'rgba(5, 12, 28, 0.94)';
+            ctx.fillRect(0, 0, VIEW_WIDTH, 56);
+            ctx.strokeStyle = '#0284c7';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, 56);
+            ctx.lineTo(VIEW_WIDTH, 56);
+            ctx.stroke();
+
+            ctx.font = 'bold 13px Consolas, monospace';
+
+            // 1) 좌측: 선체 내구도 + 총 인양 & 격퇴 수
+            ctx.fillStyle = '#ef4444';
+            let heartsStr = '';
+            for (let i = 0; i < upgrades.hull.maxHp; i++) {
+                heartsStr += i < upgrades.hull.currentHp ? '❤️' : '🖤';
+            }
+            ctx.fillText(`HULL: ${heartsStr} (${upgrades.hull.currentHp}/${upgrades.hull.maxHp})`, 20, 23);
+
+            ctx.fillStyle = '#facc15';
+            ctx.fillText(`SALVAGE: ${collectedCount} | KILLS: ${enemiesKilled}`, 20, 44);
+
+            // 2) 중앙 좌측 (반응형 간격): 점수 및 모드별 상태 (시간/목표)
+            const col2X = Math.max(260, Math.floor(VIEW_WIDTH * 0.25));
+            const mult = getScoreMultiplier();
+
+            if (gameMode === 'timeattack') {
+                const tm = Math.ceil(timeAttackTimer);
+                const tmMin = Math.floor(tm / 60);
+                const tmSec = tm % 60;
+                const timeStr = `${String(tmMin).padStart(2, '0')}:${String(tmSec).padStart(2, '0')}`;
+                ctx.fillStyle = '#fbbf24';
+                ctx.fillText(`SCORE: ${score.toLocaleString()} P`, col2X, 23);
+                ctx.fillStyle = tm <= 30 ? '#ef4444' : '#38bdf8';
+                ctx.fillText(`⏱️ TIME REMAINING: ${timeStr}`, col2X, 44);
+            } else if (gameMode === 'arcade') {
+                const pct = Math.min(100, Math.floor((score / ARCADE_TARGET_SCORE) * 100));
+                ctx.fillStyle = '#4ade80';
+                ctx.fillText(`SCORE: ${score.toLocaleString()} P (x${mult.toFixed(1)})`, col2X, 23);
+                ctx.fillStyle = '#f472b6';
+                ctx.fillText(`GOAL: 500,000 P [${pct}%]`, col2X, 44);
+            } else {
+                // 무제한 모드
+                ctx.fillStyle = '#4ade80';
+                ctx.fillText(`SCORE: ${score.toLocaleString()} P (x${mult.toFixed(1)})`, col2X, 23);
+                ctx.fillStyle = '#94a3b8';
+                ctx.fillText(`ENDLESS EXPEDITION`, col2X, 44);
+            }
+
+            // 3) 중앙 우측: 스킬 상태 (공격 [E], 소나 [Q], 초공간 진공 [R])
+            const col3X = Math.max(460, Math.floor(VIEW_WIDTH * 0.44));
+            ctx.fillStyle = attackSkill.timer <= 0 ? '#38bdf8' : '#64748b';
+            const atkStatus = attackSkill.timer <= 0 ? "READY [E]" : `${attackSkill.timer.toFixed(1)}s`;
+            ctx.fillText(`ATK: ${atkStatus}`, col3X, 23);
+
+            ctx.fillStyle = scannerSkill.timer <= 0 ? '#c084fc' : '#64748b';
+            const sonarStatus = scannerSkill.timer <= 0 ? "READY [Q]" : `${scannerSkill.timer.toFixed(1)}s`;
+            ctx.fillText(`RADAR: ${sonarStatus}`, col3X, 44);
+
+            // 초공간 진공 흡입 [R] 스킬 (해금 시 표시)
+            const col3SubX = col3X + 115;
+            if (hiddenUpgrades.screenMagnet) {
+                if (vacuumSkill.duration > 0) {
+                    ctx.fillStyle = '#f472b6';
+                    ctx.fillText(`VACUUM: 🌀ACTIVE`, col3SubX, 23);
+                } else if (vacuumSkill.timer <= 0) {
+                    ctx.fillStyle = '#d946ef';
+                    ctx.fillText(`VACUUM: READY [R]`, col3SubX, 23);
+                } else {
+                    ctx.fillStyle = '#64748b';
+                    ctx.fillText(`VACUUM: ${vacuumSkill.timer.toFixed(1)}s`, col3SubX, 23);
+                }
+            }
+
+            // 4) 우측 (화면 우측 정렬): 수심 및 기지 도킹 & 히든 현황
+            const col4X = Math.max(720, VIEW_WIDTH - 270);
+            const depth = 850 + Math.floor((submarine.y / WORLD_HEIGHT) * 3800);
+            ctx.fillStyle = '#38bdf8';
+            ctx.font = '11px Consolas';
+            ctx.fillText(`수심: ${depth}m | DMG:${getSkillDamage()} RAD:${getSkillRadius()}px`, col4X, 23);
+            
+            let hiddenTag = '';
+            if (hiddenUpgrades.screenMagnet) hiddenTag += ' [🌌진공]';
+            if (hiddenUpgrades.fullVision) hiddenTag += ' [👁️천리안]';
+            if (hiddenUpgrades.screenNuke) hiddenTag += ' [💥궤멸포]';
+
+            if (hiddenTag) {
+                ctx.fillStyle = '#d946ef';
+                ctx.fillText(`히든:${hiddenTag}`, col4X, 44);
+            } else if (isCurrentlyDocked) {
+                ctx.fillStyle = '#4ade80';
+                ctx.fillText(`⚓ DOCKED: ${currentDockedBase ? currentDockedBase.name : ''}`, col4X, 44);
+            } else {
+                ctx.fillStyle = '#64748b';
+                ctx.fillText(`엔진:Lv.${upgrades.speed.level} 보석밀도:Lv.${upgrades.spawnDensity.level}/30`, col4X, 44);
+            }
+
+            ctx.restore();
+        }
+
+        /* -------------------------------------------------------------
+           우측 상단 소나 레이더 미니맵 렌더링
+           - 내 잠수정 위치 표시 (중앙 정밀 방위각 + 전체 월드 미니 맵 핍)
+           - [Q] 레이더(소나) 가동 시 주변 광물 실시간 탐지 및 발광 표시
+           - 기지 위치 / 방향 안내 및 적 탐지
+        ------------------------------------------------------------- */
+        function renderMinimap() {
+            if (gameMode === 'menu' || gameOver || isGameFinished) return;
+
+            const subCx = submarine.x + submarine.width / 2;
+            const subCy = submarine.y + submarine.height / 2;
+
+            // 미니맵 프레임 사양
+            const radarSize = 146;
+            const rightPad = 16;
+            const topPad = 64;
+            const frameX = VIEW_WIDTH - radarSize - rightPad;
+            const frameY = topPad;
+            const frameW = radarSize;
+            const frameH = radarSize + 40; // 186px
+
+            // 레이더 스코프 원형 영역
+            const radarRadius = 54;
+            const centerX = frameX + frameW / 2;
+            const centerY = frameY + 20 + radarRadius;
+            const RADAR_WORLD_RANGE = 2200; // 월드 탐지 반경 (px)
+
+            ctx.save();
+
+            // 1) 미니맵 외곽 콘솔 패널 배경
+            ctx.fillStyle = 'rgba(4, 13, 28, 0.88)';
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.45)';
+            ctx.lineWidth = 1.5;
+            
+            // 둥근 사각형 그리기
+            ctx.beginPath();
+            if (ctx.roundRect) {
+                ctx.roundRect(frameX, frameY, frameW, frameH, 8);
+            } else {
+                ctx.rect(frameX, frameY, frameW, frameH);
+            }
+            ctx.fill();
+            ctx.stroke();
+
+            // 2) 상단 타이틀 바
+            ctx.font = 'bold 11px Consolas, monospace';
+            ctx.fillStyle = '#38bdf8';
+            ctx.textAlign = 'left';
+            ctx.fillText('📡 SONAR RADAR', frameX + 10, frameY + 15);
+
+            // 레이더 준비 상태 인디케이터 점
+            const isRadarReady = scannerSkill.timer <= 0;
+            ctx.fillStyle = isRadarReady ? '#22c55e' : '#f59e0b';
+            ctx.beginPath();
+            ctx.arc(frameX + frameW - 14, frameY + 11, 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 3) 레이더 스코프 클리핑 및 내부 렌더링
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radarRadius, 0, Math.PI * 2);
+            ctx.clip();
+
+            // 스코프 배경 심해 그라데이션
+            const scopeGrad = ctx.createRadialGradient(centerX, centerY, 5, centerX, centerY, radarRadius);
+            scopeGrad.addColorStop(0, '#062038');
+            scopeGrad.addColorStop(0.7, '#031424');
+            scopeGrad.addColorStop(1, '#010810');
+            ctx.fillStyle = scopeGrad;
+            ctx.fillRect(centerX - radarRadius, centerY - radarRadius, radarRadius * 2, radarRadius * 2);
+
+            // 거리 동심원 그리드
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.18)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radarRadius * 0.35, 0, Math.PI * 2);
+            ctx.arc(centerX, centerY, radarRadius * 0.70, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // 십자선 (방위선)
+            ctx.beginPath();
+            ctx.moveTo(centerX - radarRadius, centerY);
+            ctx.lineTo(centerX + radarRadius, centerY);
+            ctx.moveTo(centerX, centerY - radarRadius);
+            ctx.lineTo(centerX, centerY + radarRadius);
+            ctx.stroke();
+
+            // 상시 회전 레이더 스위프 빔 (잠수함 소나 감성 연출)
+            const sweepAngle = (performance.now() * 0.0016) % (Math.PI * 2);
+            const sweepGrad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radarRadius);
+            sweepGrad.addColorStop(0, 'rgba(56, 189, 248, 0.35)');
+            sweepGrad.addColorStop(1, 'rgba(56, 189, 248, 0.0)');
+
+            ctx.fillStyle = sweepGrad;
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.arc(centerX, centerY, radarRadius, sweepAngle - 0.4, sweepAngle);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.strokeStyle = 'rgba(125, 211, 252, 0.6)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.lineTo(centerX + Math.cos(sweepAngle) * radarRadius, centerY + Math.sin(sweepAngle) * radarRadius);
+            ctx.stroke();
+
+            // [Q] 스킬 발동 시 퍼져나가는 실제 음파 파동 링
+            if (scannerSkill.activeWave) {
+                const waveFrac = scannerSkill.activeWave.radius / RADAR_WORLD_RANGE;
+                const waveR = waveFrac * radarRadius;
+                if (waveR <= radarRadius) {
+                    ctx.save();
+                    ctx.strokeStyle = '#c084fc';
+                    ctx.lineWidth = 2.5;
+                    ctx.shadowColor = '#d946ef';
+                    ctx.shadowBlur = 8;
+                    ctx.beginPath();
+                    ctx.arc(centerX, centerY, waveR, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            }
+
+            // 기지(도킹 스테이션) 표시
+            baseStations.forEach(base => {
+                const bcx = base.x + base.w / 2;
+                const bcy = base.y + base.h / 2;
+                const bdx = bcx - subCx;
+                const bdy = bcy - subCy;
+                const bdist = Math.hypot(bdx, bdy);
+
+                if (bdist <= RADAR_WORLD_RANGE) {
+                    const bx = centerX + (bdx / RADAR_WORLD_RANGE) * radarRadius;
+                    const by = centerY + (bdy / RADAR_WORLD_RANGE) * radarRadius;
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.fillRect(bx - 3, by - 3, 6, 6);
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(bx - 3, by - 3, 6, 6);
+                }
+            });
+
+            // 적(위험 개체) 표시 (레이더 범위 내)
+            enemies.forEach(en => {
+                if (!en.alive) return;
+                const edx = (en.x + en.w / 2) - subCx;
+                const edy = (en.y + en.h / 2) - subCy;
+                const edist = Math.hypot(edx, edy);
+
+                if (edist <= RADAR_WORLD_RANGE) {
+                    const ex = centerX + (edx / RADAR_WORLD_RANGE) * radarRadius;
+                    const ey = centerY + (edy / RADAR_WORLD_RANGE) * radarRadius;
+                    ctx.fillStyle = en.type === 'mine' ? '#f59e0b' : '#ef4444';
+                    ctx.beginPath();
+                    ctx.arc(ex, ey, en.type === 'mine' ? 2 : 2.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+
+            // ★ 핵심 요구사항: 레이더를 켰을 때(소나 가동 시) 주변 광물 표시!
+            let detectedMineralCount = 0;
+            collectibles.forEach(item => {
+                if (item.collected) return;
+                // 레이더가 켜져있는 동안(sonarHighlight > 0)에만 광물이 미니맵에 표시됨!
+                const isDetected = item.sonarHighlight > 0 || (hiddenUpgrades && hiddenUpgrades.fullVision);
+                if (!isDetected) return;
+
+                const idx = (item.x + item.w / 2) - subCx;
+                const idy = (item.y + item.h / 2) - subCy;
+                const idist = Math.hypot(idx, idy);
+
+                if (idist <= RADAR_WORLD_RANGE) {
+                    detectedMineralCount++;
+                    const ix = centerX + (idx / RADAR_WORLD_RANGE) * radarRadius;
+                    const iy = centerY + (idy / RADAR_WORLD_RANGE) * radarRadius;
+
+                    const itemAlpha = Math.min(1.0, Math.max(0.35, item.sonarHighlight / 1.5));
+                    ctx.save();
+                    ctx.globalAlpha = itemAlpha;
+                    ctx.fillStyle = item.color || '#38bdf8';
+                    ctx.shadowColor = item.color || '#38bdf8';
+                    ctx.shadowBlur = 5;
+
+                    // 아이템 종류별 크기 & 점 표현
+                    const dotR = item.type === 'chest' || item.type === 'wreck' ? 3.2 : 2.2;
+                    ctx.beginPath();
+                    ctx.arc(ix, iy, dotR, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // 반짝임 테두리
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 0.8;
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            });
+
+            // 플레이어(내 잠수함) 위치 표시 - 레이더 중심
+            ctx.save();
+            ctx.translate(centerX, centerY);
+
+            let heading = submarine.facingRight ? 0 : Math.PI;
+            if (Math.hypot(submarine.vx, submarine.vy) > 0.25) {
+                heading = Math.atan2(submarine.vy, submarine.vx);
+            }
+            ctx.rotate(heading);
+
+            // 잠수함 기수 화살표/아이콘
+            ctx.fillStyle = '#4ade80';
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1;
+            ctx.shadowColor = '#4ade80';
+            ctx.shadowBlur = 6;
+
+            ctx.beginPath();
+            ctx.moveTo(5, 0);
+            ctx.lineTo(-4, -3.5);
+            ctx.lineTo(-2, 0);
+            ctx.lineTo(-4, 3.5);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+
+            // 플레이어 펄스 링
+            ctx.strokeStyle = 'rgba(74, 222, 128, 0.4)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 7 + Math.sin(Date.now() * 0.008) * 2, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.restore(); // 스코프 클립 해제
+
+            // 스코프 테두리 링
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.65)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radarRadius, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // 가장 가까운 기지 방향 림 인디케이터 (기지가 레이더 범위 바깥일 때)
+            let nearestBase = baseStations[0];
+            let minDist = Infinity;
+            baseStations.forEach(base => {
+                const bcx = base.x + base.w / 2;
+                const bcy = base.y + base.h / 2;
+                const d = Math.hypot(bcx - subCx, bcy - subCy);
+                if (d < minDist) {
+                    minDist = d;
+                    nearestBase = base;
+                }
+            });
+
+            if (minDist > RADAR_WORLD_RANGE) {
+                const nbcx = nearestBase.x + nearestBase.w / 2;
+                const nbcy = nearestBase.y + nearestBase.h / 2;
+                const baseAngle = Math.atan2(nbcy - subCy, nbcx - subCx);
+                const edgeX = centerX + Math.cos(baseAngle) * (radarRadius - 3);
+                const edgeY = centerY + Math.sin(baseAngle) * (radarRadius - 3);
+
+                ctx.save();
+                ctx.translate(edgeX, edgeY);
+                ctx.rotate(baseAngle);
+                ctx.fillStyle = '#38bdf8';
+                ctx.beginPath();
+                ctx.moveTo(3, 0);
+                ctx.lineTo(-3, -2.5);
+                ctx.lineTo(-3, 2.5);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // 4) 하단 상태 정보 & 전체 월드 맵 핍(World PIP)
+            const bottomY = centerY + radarRadius + 8;
+
+            // 전체 월드(14,000 x 10,000) 내 내 위치 미니 박스 (32x22px)
+            const pipW = 32;
+            const pipH = 22;
+            const pipX = frameX + 8;
+            const pipY = bottomY;
+
+            ctx.fillStyle = 'rgba(2, 6, 18, 0.9)';
+            ctx.fillRect(pipX, pipY, pipW, pipH);
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(pipX, pipY, pipW, pipH);
+
+            // 월드 핍 내부 내 위치 점
+            const pipSubX = pipX + Math.max(1, Math.min(pipW - 2, (subCx / WORLD_WIDTH) * pipW));
+            const pipSubY = pipY + Math.max(1, Math.min(pipH - 2, (subCy / WORLD_HEIGHT) * pipH));
+            ctx.fillStyle = '#facc15';
+            ctx.beginPath();
+            ctx.arc(pipSubX, pipSubY, 1.8, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 하단 레이더 상태 텍스트
+            ctx.textAlign = 'left';
+            const statusX = pipX + pipW + 6;
+            ctx.font = 'bold 9.5px Consolas, monospace';
+
+            if (detectedMineralCount > 0) {
+                ctx.fillStyle = '#38bdf8';
+                ctx.fillText(`📡 광물: ${detectedMineralCount}개 감지`, statusX, bottomY + 9);
+            } else if (scannerSkill.activeWave) {
+                ctx.fillStyle = '#c084fc';
+                ctx.fillText(`📡 음파 스캔 중...`, statusX, bottomY + 9);
+            } else if (isRadarReady) {
+                ctx.fillStyle = '#4ade80';
+                ctx.fillText(`[Q] 레이더 가동`, statusX, bottomY + 9);
+            } else {
+                ctx.fillStyle = '#94a3b8';
+                ctx.fillText(`⏳ 충전: ${scannerSkill.timer.toFixed(1)}s`, statusX, bottomY + 9);
+            }
+
+            // 좌표 안내
+            ctx.fillStyle = '#64748b';
+            ctx.font = '9px Consolas, monospace';
+            ctx.fillText(`X:${Math.floor(subCx)} Y:${Math.floor(subCy)}`, statusX, bottomY + 20);
+
+            ctx.restore();
+        }
+
+        /* -------------------------------------------------------------
+           게임 오버 화면 (무제한 탐사 종료 시)
+        ------------------------------------------------------------- */
+        function renderGameOverScreen() {
+            ctx.fillStyle = 'rgba(15, 5, 5, 0.88)';
+            ctx.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
+
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(VIEW_WIDTH / 2 - 230, VIEW_HEIGHT / 2 - 110, 460, 220);
+
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#ef4444';
+            ctx.font = 'bold 34px Consolas';
+            ctx.fillText("CRITICAL FAILURE", VIEW_WIDTH / 2, VIEW_HEIGHT / 2 - 45);
+
+            ctx.fillStyle = '#fca5a5';
+            ctx.font = 'bold 16px Consolas';
+            ctx.fillText("선체 난파! 잠수함이 심해 바닥으로 침몰했습니다.", VIEW_WIDTH / 2, VIEW_HEIGHT / 2 - 10);
+
+            ctx.fillStyle = '#f8fafc';
+            ctx.font = '14px Consolas';
+            ctx.fillText(`최종 탐사 점수: ${score.toLocaleString()} PTS | 인양: ${collectedCount}개 | 격퇴: ${enemiesKilled}체`, VIEW_WIDTH / 2, VIEW_HEIGHT / 2 + 25);
+
+            ctx.fillStyle = '#facc15';
+            ctx.font = 'bold 15px Consolas';
+            ctx.fillText("▶ [R] 키를 눌러 새로운 무제한 탐사 출항 ◀", VIEW_WIDTH / 2, VIEW_HEIGHT / 2 + 65);
+            ctx.textAlign = 'left';
+        }
+
+        /* -------------------------------------------------------------
+           메인 루프
+        ------------------------------------------------------------- */
+        function loop(timestamp) {
+            const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
+            lastTime = timestamp;
+
+            update(dt);
+            render();
+
+            requestAnimationFrame(loop);
+        }
+
+        requestAnimationFrame((ts) => {
+            lastTime = ts;
+            loop(ts);
+        });
+
+        logToTerminal("🕹️ [심해 시스템 대기] 메인 메뉴에서 모드를 선택하세요! (무제한 / 시간제한 / 아케이드)", "normal");
+    </script>
+</body>
+</html>
